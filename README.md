@@ -290,3 +290,15 @@ verification in `credda listen`.
   without trusting the wire it arrived on.
 - Every command is read-only against the score. `mint`/`revoke` manage a
   share token — a capability, not a score write.
+
+## License
+
+MIT © Credda. See [LICENSE](LICENSE).
+
+---
+
+Part of the Credda SDK family:
+[`@credda/js`](https://github.com/Credda-io/credda-js) ·
+[`credda-go`](https://github.com/Credda-io/credda-go) ·
+[`@credda/cli`](https://github.com/Credda-io/credda-cli) ·
+[`@credda/mcp-server`](https://github.com/Credda-io/credda-mcp)
