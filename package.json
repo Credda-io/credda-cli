@@ -39,5 +39,17 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Credda-io/credda-cli.git"
+  },
+  "keywords": [
+    "credda",
+    "cli",
+    "command-line",
+    "trust",
+    "reliability-score",
+    "verifiable-credentials",
+    "sdk"
+  ],
+  "engines": {
+    "node": ">=18"
   }
 }
