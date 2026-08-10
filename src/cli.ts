@@ -59,7 +59,7 @@ export interface CliContext {
   pollIntervalMs?: number;
 }
 
-export const VERSION = '0.1.5';
+export const VERSION = '0.2.0';
 
 export const HELP = `credda: portable trust from the terminal
 
@@ -104,8 +104,18 @@ Public (no API key):
 
 Platform (needs CREDDA_API_KEY):
   credda score <userId>          Current score
-  credda explain <userId>        Factor-level score explanation
-  credda components <userId>     Six named 0-100 score components
+  credda explain <userId>        Factor-level score explanation, plus the
+                                 adverse-action reason codes. UNMEASURED IS NOT
+                                 ZERO: a factor with "available": false carries
+                                 "value": null because there was nothing to
+                                 measure, and "reasonCodes.insufficientData"
+                                 true means BOTH ranked lists are empty by
+                                 construction. Read "dataSufficiency" before
+                                 rendering any rate; never print a null as 0.
+  credda components <userId>     Six named 0-100 score components. Each carries
+                                 "available"; a false one has "score": null and
+                                 must never be shown as 0. A MEASURED zero
+                                 reports "available": true and is real.
   credda risk <userId>           Advisory risk signals
   credda trust-summary <userId> [--narrative]
                                  Deterministic, evidence-based trust summary
@@ -148,9 +158,19 @@ Platform (needs CREDDA_API_KEY):
                                  can never move the Reliability Score.
   credda qualify <userId> --category <education|skill|certification|employment>
         [--label <l>] [--issuer <i>] [--verified-by <witness>]
+        [--claim-ref <id>] [--retract] [--supersede]
                                  Record a qualification claim. Always recorded;
                                  counts as VERIFIED only with a genuine
                                  third-party --verified-by witness.
+                                 --claim-ref gives the claim a stable identity,
+                                 so syncing it twice (self-attested, then
+                                 verified) counts ONCE. --retract needs
+                                 --claim-ref and withdraws that claim; it is
+                                 never verified and deletes nothing (the ledger
+                                 stays append-only). --supersede needs
+                                 --claim-ref too and retires an earlier
+                                 confirmed instance of the same claim, so a
+                                 lapsed credential stops counting as verified.
   credda professional-record get <userId>
                                  Résumé-shaped summary of a VERIFIED work record.
                                  Describes a record, not a hiring verdict, a
@@ -894,7 +914,16 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
         // The claim is ALWAYS recorded; --verified-by decides whether it counts
         // as verified. Never assert it yourself: name the witness.
         const { positional, flags } = parseFlags(args, {
-          valued: ['category', 'label', 'issuer', 'verified-by'],
+          valued: ['category', 'label', 'issuer', 'verified-by', 'claim-ref'],
+          // --retract records a RETRACTION MARKER for (category, claim-ref)
+          // instead of a claim. It needs --claim-ref (the API 400s without it),
+          // and any --verified-by alongside it is ignored server-side, so a
+          // retraction can never be verified.
+          // --supersede records a SUPERSESSION MARKER for (category, claim-ref):
+          // resolution reads the group from this event onward, so a lapsed or
+          // downgraded credential stops counting as verified. It also needs
+          // --claim-ref, deletes nothing, and grants nothing on its own.
+          boolean: ['retract', 'supersede'],
         });
         const userId = requireArg(positional, 'userId');
         const category = strFlag(flags, 'category');
@@ -910,6 +939,11 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
               label: strFlag(flags, 'label'),
               issuer: strFlag(flags, 'issuer'),
               verifiedBy: strFlag(flags, 'verified-by'),
+              // Stable claim identity: the same value across the creation-time
+              // and confirmation-time syncs of one claim, so it counts once.
+              claimRef: strFlag(flags, 'claim-ref'),
+              ...(flags.retract === true ? { retract: true } : {}),
+              ...(flags.supersede === true ? { supersedes: true } : {}),
             },
             requireKey(ctx),
           ),
