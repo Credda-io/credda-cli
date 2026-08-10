@@ -1,6 +1,6 @@
 {
   "name": "@credda/cli",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Official Credda CLI: look up and offline-verify portable trust from the terminal. Public trust checks, credential verification, platform score reads, share-token minting. A thin client over @credda/js; no scoring logic lives here.",
   "license": "MIT",
   "homepage": "https://github.com/Credda-io/credda-cli#readme",
@@ -25,7 +25,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@credda/js": "^0.6.0"
+    "@credda/js": "^0.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",

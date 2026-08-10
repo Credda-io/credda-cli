@@ -94,7 +94,7 @@ function makeCtx(overrides: Partial<CliContext> = {}): CliContext & {
       linkedin: { addToProfileUrl: 'https://www.linkedin.com/profile/add' },
     }),
     getPublicProfessionalRecord: vi.fn().mockResolvedValue({ token: 'tok', professionalRecord: null }),
-    getReliabilityReport: vi.fn().mockResolvedValue({ userId: 'u1', reliabilityReportVersion: '1.0', reliability: { band: 'Good' } }),
+    getReliabilityReport: vi.fn().mockResolvedValue({ userId: 'u1', reliabilityReportVersion: '1.0', reliability: { band: 'Established' } }),
     getPublicReliabilityReport: vi.fn().mockResolvedValue({ token: 'tok', reliabilityReport: null }),
     getCareerExport: vi.fn().mockResolvedValue({ $schema: 'https://jsonresume.org/schema', meta: {} }),
     getPublicCareerExport: vi.fn().mockResolvedValue({ $schema: 'https://jsonresume.org/schema', meta: {} }),
@@ -111,14 +111,14 @@ function makeCtx(overrides: Partial<CliContext> = {}): CliContext & {
           record: 'Twelve confirmed deliveries, all on time.',
           tryNext: 'GET /api/v1/users/sbx_reliable_courier/score/explain',
           totalEvents: 12, eventsWritten: 12, alreadySeeded: false,
-          finalScore: 81, scoreBand: 'Excellent', confidence: 1,
+          finalScore: 81, scoreBand: 'Distinguished', confidence: 1,
         },
         {
           userId: 'sbx_new_signup', label: 'Brand-new subject',
           record: 'One self-reported completion, three days old.',
           tryNext: 'POST /api/v1/users/sbx_new_signup/score/project',
           totalEvents: 1, eventsWritten: 1, alreadySeeded: false,
-          finalScore: 21.89, scoreBand: 'Unproven', confidence: 0,
+          finalScore: 21.89, scoreBand: 'Provisional', confidence: 0,
         },
       ],
       note: 'Synthetic sandbox data.',
@@ -138,9 +138,9 @@ function makeCtx(overrides: Partial<CliContext> = {}): CliContext & {
     err: (l) => errors.push(l),
     readInput: vi.fn().mockResolvedValue(''),
     verifiers: {
-      trustCredential: vi.fn().mockResolvedValue({ valid: true, cred: { scoreBand: 'GOOD' } }),
-      verifiableCredential: vi.fn().mockResolvedValue({ valid: true, cred: { scoreBand: 'GOOD' } }),
-      trustExport: vi.fn().mockResolvedValue({ credential: { cred: { scoreBand: 'GOOD' } } }),
+      trustCredential: vi.fn().mockResolvedValue({ valid: true, cred: { scoreBand: 'Established' } }),
+      verifiableCredential: vi.fn().mockResolvedValue({ valid: true, cred: { scoreBand: 'Established' } }),
+      trustExport: vi.fn().mockResolvedValue({ credential: { cred: { scoreBand: 'Established' } } }),
     },
     lines,
     errors,
@@ -685,7 +685,7 @@ describe('benchmarks, reason codes, trust summary and the book query', () => {
         [
           'users',
           '--score-min', '40', '--score-max', '90',
-          '--band', 'Good',
+          '--band', 'Established',
           '--subject-type', 'PERSON',
           '--active-since', '2026-01-01T00:00:00Z',
           '--verified',
@@ -699,7 +699,7 @@ describe('benchmarks, reason codes, trust summary and the book query', () => {
     expect(ctx.client.listUsers).toHaveBeenCalledWith('k', {
       scoreMin: 40,
       scoreMax: 90,
-      band: 'Good',
+      band: 'Established',
       subjectType: 'PERSON',
       activeSince: '2026-01-01T00:00:00Z',
       minVerifiedEvents: 2,
@@ -745,10 +745,10 @@ describe('benchmarks, reason codes, trust summary and the book query', () => {
 
   it('book-summary sizes a segment with the same closed filter set', async () => {
     const ctx = makeCtx({ apiKey: 'k' });
-    expect(await runCli(['book-summary', '--band', 'Good', '--verified'], ctx)).toBe(0);
+    expect(await runCli(['book-summary', '--band', 'Established', '--verified'], ctx)).toBe(0);
     const [key, query] = (ctx.client.getBookSummary as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
     expect(key).toBe('k');
-    expect(query).toMatchObject({ band: 'Good', hasVerifiedEvents: true });
+    expect(query).toMatchObject({ band: 'Established', hasVerifiedEvents: true });
     // A summary has no page: paging flags are not part of its vocabulary.
     expect(query).not.toHaveProperty('limit');
     expect(query).not.toHaveProperty('cursor');
@@ -1098,10 +1098,10 @@ describe('threshold policies', () => {
   it('create builds an --all band policy', async () => {
     const ctx = makeCtx({ apiKey: 'k' });
     expect(
-      await runCli(['policies', 'create', '--name', 'Any High Risk', '--all', '--metric', 'band', '--direction', 'enter', '--band', 'High Risk'], ctx),
+      await runCli(['policies', 'create', '--name', 'Any At Risk', '--all', '--metric', 'band', '--direction', 'enter', '--band', 'At Risk'], ctx),
     ).toBe(0);
     expect(ctx.client.createPolicy).toHaveBeenCalledWith(
-      { name: 'Any High Risk', metric: 'band', appliesToAll: true, direction: 'enter', band: 'High Risk' },
+      { name: 'Any At Risk', metric: 'band', appliesToAll: true, direction: 'enter', band: 'At Risk' },
       'k',
     );
   });
@@ -1189,6 +1189,54 @@ describe('Open Badges, verified profile and the professional record', () => {
       { category: 'skill', label: 'TypeScript', issuer: undefined, verifiedBy: undefined },
       'k',
     );
+  });
+
+  it('qualify passes --claim-ref through as the stable claim identity', async () => {
+    const ctx = makeCtx({ apiKey: 'k' });
+    expect(
+      await runCli(
+        ['qualify', 'u1', '--category', 'employment', '--label', 'Courier', '--claim-ref', 'hr-4821'],
+        ctx,
+      ),
+    ).toBe(0);
+    expect(ctx.client.recordQualification).toHaveBeenCalledWith(
+      'u1',
+      { category: 'employment', label: 'Courier', issuer: undefined, verifiedBy: undefined, claimRef: 'hr-4821' },
+      'k',
+    );
+  });
+
+  it('qualify --retract sends the retraction marker and nothing else', async () => {
+    const ctx = makeCtx({ apiKey: 'k' });
+    expect(
+      await runCli(['qualify', 'u1', '--category', 'certification', '--claim-ref', 'cert-9', '--retract'], ctx),
+    ).toBe(0);
+    const [, input] = (ctx.client.recordQualification as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(input).toMatchObject({ category: 'certification', claimRef: 'cert-9', retract: true });
+    // A retraction can never carry a supersession, and the CLI must not invent
+    // a witness for it: the API ignores verifiedBy on a retraction anyway.
+    expect(input.supersedes).toBeUndefined();
+    expect(input.verifiedBy).toBeUndefined();
+  });
+
+  it('qualify --supersede sends `supersedes`, the name the API actually reads', async () => {
+    const ctx = makeCtx({ apiKey: 'k' });
+    expect(
+      await runCli(['qualify', 'u1', '--category', 'education', '--claim-ref', 'deg-1', '--supersede'], ctx),
+    ).toBe(0);
+    const [, input] = (ctx.client.recordQualification as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(input).toMatchObject({ category: 'education', claimRef: 'deg-1', supersedes: true });
+    expect(input.retract).toBeUndefined();
+  });
+
+  it('qualify omits the retract/supersede markers entirely when the flags are absent', async () => {
+    const ctx = makeCtx({ apiKey: 'k' });
+    expect(await runCli(['qualify', 'u1', '--category', 'skill', '--label', 'Rust'], ctx)).toBe(0);
+    const [, input] = (ctx.client.recordQualification as ReturnType<typeof vi.fn>).mock.calls[0];
+    // Sending `retract: false` would be a different request from sending
+    // nothing, so the keys must be absent, not present-and-false.
+    expect('retract' in input).toBe(false);
+    expect('supersedes' in input).toBe(false);
   });
 
   it('qualify requires --category', async () => {
@@ -1283,7 +1331,7 @@ describe('quickstart: the one-command start', () => {
     // A table a person can read, not a JSON dump.
     expect(out).toContain('SUBJECT');
     expect(out).toContain('sbx_reliable_courier');
-    expect(out).toContain('Excellent');
+    expect(out).toContain('Distinguished');
     // It proves an ordinary keyed read works, using the same call an
     // integration makes.
     expect(ctx.client.getScore).toHaveBeenCalledWith('sbx_reliable_courier', 'crd_test_abc');

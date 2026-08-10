@@ -118,9 +118,19 @@ credda verified-profile <userId>
                             #   never move the Reliability Score.
 credda qualify <userId> --category <education|skill|certification|employment>
         [--label <l>] [--issuer <i>] [--verified-by <witness>]
+        [--claim-ref <id>] [--retract] [--supersede]
                             # record a qualification claim. Always recorded;
                             #   counts as VERIFIED only with a genuine
                             #   third-party --verified-by witness.
+                            # --claim-ref gives the claim a stable identity, so
+                            #   syncing it twice (self-attested, then verified)
+                            #   counts ONCE.
+                            # --retract needs --claim-ref and withdraws that
+                            #   claim. It is never verified and deletes nothing:
+                            #   the ledger stays append-only.
+                            # --supersede needs --claim-ref and retires an
+                            #   earlier confirmed instance, so a lapsed
+                            #   credential stops counting as verified.
 credda professional-record get <userId>
                             # résumé-shaped summary of a VERIFIED work record.
                             #   Describes a record. Not a hiring verdict, a
