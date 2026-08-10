@@ -206,8 +206,8 @@ reads into, blocks, or changes a score:
 ```sh
 credda policies create --name "Watch 60" --user worker_7 \
         --metric score --direction down --threshold 60
-credda policies create --name "Anyone entering High Risk" --all \
-        --metric band --direction enter --band "High Risk"
+credda policies create --name "Anyone entering At Risk" --all \
+        --metric band --direction enter --band "At Risk"
 credda policies list [--cursor <c>] [--limit <n>]
 credda policies get <id>
 credda policies update <id> [--threshold <n>] [--direction <d>] [--band <b>]
