@@ -1,12 +1,12 @@
 /**
- * `credda listen` — a local webhook receiver for development.
+ * `credda listen`: a local webhook receiver for development.
  *
  * Accepts POSTs on a local port, verifies each delivery's HMAC signature with
  * the webhook's signing secret (when provided), and pretty-prints the payload.
  * Responds 200 so a tunneled Credda delivery counts as delivered.
  *
  * Honest scope: Credda only delivers to public HTTPS endpoints, so this does
- * NOT tunnel by itself — put your own tunnel in front (cloudflared, ngrok, …)
+ * NOT tunnel by itself: put your own tunnel in front (cloudflared, ngrok, …)
  * and register the tunnel URL as the webhook. What this gives you is the
  * Stripe-CLI-style local loop: see every delivery, verify its signature the
  * same way your production handler must, and iterate without redeploying.
@@ -47,7 +47,7 @@ export function startListener(opts: { port: number; secret?: string }): Promise<
             if (parsed.type) eventType = parsed.type;
             pretty = JSON.stringify(parsed, null, 2);
           } catch {
-            // non-JSON body — print raw
+            // non-JSON body: print raw
           }
 
           console.log(`\n── ${time} · ${req.method} ${req.url} · ${String(eventType)} · ${verdict}`);

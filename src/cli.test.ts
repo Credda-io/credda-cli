@@ -320,7 +320,7 @@ describe('parseIdList', () => {
 
   it('takes the first CSV column and skips a header row', () => {
     expect(parseIdList({ fileText: 'externalId,name\nu1,Ann\nu2,Bo\n' })).toEqual(['u1', 'u2']);
-    // no header — first line is a real id
+    // no header: first line is a real id
     expect(parseIdList({ fileText: 'u9,Zed\nu1,Ann\n' })).toEqual(['u9', 'u1']);
   });
 });
@@ -612,14 +612,14 @@ describe('errorHints', () => {
 });
 
 describe('benchmarks, reason codes, trust summary and the book query', () => {
-  it('benchmarks is public — no key needed', async () => {
+  it('benchmarks is public (no key needed)', async () => {
     const ctx = makeCtx();
     expect(await runCli(['benchmarks'], ctx)).toBe(0);
     expect(ctx.client.getBenchmarks).toHaveBeenCalledWith();
     expect(JSON.parse(ctx.lines[0]).kAnonymity.minimumCohortSize).toBe(20);
   });
 
-  it('reason-codes is public — no key needed', async () => {
+  it('reason-codes is public (no key needed)', async () => {
     const ctx = makeCtx();
     expect(await runCli(['reason-codes'], ctx)).toBe(0);
     expect(ctx.client.getReasonCodes).toHaveBeenCalledWith();
@@ -729,7 +729,7 @@ describe('benchmarks, reason codes, trust summary and the book query', () => {
       ),
     ).toBe(0);
     const query = (ctx.client.listUsers as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][1] as Record<string, unknown>;
-    // `false` must survive — it is a filter value, not an absent one.
+    // `false` must survive: it is a filter value, not an absent one.
     expect(query.hasScore).toBe(false);
     expect(query.scoreFrozen).toBe(true);
     expect(query.subjectType).toBe('ORGANIZATION');
@@ -749,7 +749,7 @@ describe('benchmarks, reason codes, trust summary and the book query', () => {
     const [key, query] = (ctx.client.getBookSummary as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
     expect(key).toBe('k');
     expect(query).toMatchObject({ band: 'Good', hasVerifiedEvents: true });
-    // A summary has no page — paging flags are not part of its vocabulary.
+    // A summary has no page: paging flags are not part of its vocabulary.
     expect(query).not.toHaveProperty('limit');
     expect(query).not.toHaveProperty('cursor');
   });
@@ -838,7 +838,7 @@ describe('confirmation requests', () => {
   it('list/get/cancel are keyed and route through', async () => {
     const ctx = makeCtx({ apiKey: 'k' });
     expect(await runCli(['confirmations', 'list', '--status', 'pending', '--limit', '5', '--cursor', 'c0'], ctx)).toBe(0);
-    // The status is normalised — the API stores it upper-case.
+    // The status is normalised: the API stores it upper-case.
     expect(ctx.client.listConfirmations).toHaveBeenCalledWith('k', { limit: 5, cursor: 'c0', status: 'PENDING' });
 
     expect(await runCli(['confirmations', 'get', 'cnf_1'], ctx)).toBe(0);
@@ -848,7 +848,7 @@ describe('confirmation requests', () => {
     expect(ctx.client.cancelConfirmation).toHaveBeenCalledWith('cnf_1', 'k');
   });
 
-  it('preview works with NO API key — the token is the capability', async () => {
+  it('preview works with NO API key: the token is the capability', async () => {
     const ctx = makeCtx(); // deliberately keyless
     expect(await runCli(['confirmations', 'preview', 'cnf_1', '--token', 'raw_token'], ctx)).toBe(0);
     expect(ctx.client.previewConfirmation).toHaveBeenCalledWith('cnf_1', 'raw_token');
@@ -869,7 +869,7 @@ describe('confirmation requests', () => {
     expect(ctx.client.respondToConfirmation).toHaveBeenCalledWith('cnf_1', 't', 'decline');
   });
 
-  it('respond refuses an ambiguous or missing decision — confirming is never the default', async () => {
+  it('respond refuses an ambiguous or missing decision: confirming is never the default', async () => {
     const both = makeCtx();
     expect(await runCli(['confirmations', 'respond', 'cnf_1', '--token', 't', '--confirm', '--decline'], both)).toBe(1);
     expect(both.errors.at(-1)).toContain('exactly one of --confirm or --decline');
@@ -1025,7 +1025,7 @@ describe('reference requests', () => {
   it('list/get/cancel are keyed and route through', async () => {
     const ctx = makeCtx({ apiKey: 'k' });
     expect(await runCli(['references', 'list', '--status', 'pending', '--limit', '5', '--cursor', 'c0'], ctx)).toBe(0);
-    // The status is normalised — the API stores it upper-case.
+    // The status is normalised: the API stores it upper-case.
     expect(ctx.client.listReferences).toHaveBeenCalledWith('k', { limit: 5, cursor: 'c0', status: 'PENDING' });
 
     expect(await runCli(['references', 'get', 'rf_1'], ctx)).toBe(0);
@@ -1035,7 +1035,7 @@ describe('reference requests', () => {
     expect(ctx.client.cancelReference).toHaveBeenCalledWith('rf_1', 'k');
   });
 
-  it('preview works with NO API key — the token is the capability', async () => {
+  it('preview works with NO API key: the token is the capability', async () => {
     const ctx = makeCtx(); // deliberately keyless
     expect(await runCli(['references', 'preview', 'rf_1', '--token', 'raw_token'], ctx)).toBe(0);
     expect(ctx.client.previewReference).toHaveBeenCalledWith('rf_1', 'raw_token');
@@ -1056,7 +1056,7 @@ describe('reference requests', () => {
     expect(ctx.client.respondToReference).toHaveBeenCalledWith('rf_1', 't', 'decline');
   });
 
-  it('respond refuses an ambiguous or missing decision — confirming is never the default', async () => {
+  it('respond refuses an ambiguous or missing decision: confirming is never the default', async () => {
     const both = makeCtx();
     expect(await runCli(['references', 'respond', 'rf_1', '--token', 't', '--confirm', '--decline'], both)).toBe(1);
     expect(both.errors.at(-1)).toContain('exactly one of --confirm or --decline');
@@ -1151,7 +1151,7 @@ describe('threshold policies', () => {
 });
 
 describe('Open Badges, verified profile and the professional record', () => {
-  it('badges list/get are public — no key needed', async () => {
+  it('badges list/get are public (no key needed)', async () => {
     const ctx = makeCtx();
     expect(await runCli(['badges', 'list'], ctx)).toBe(0);
     expect(ctx.client.getOpenBadgeAchievements).toHaveBeenCalledWith();
@@ -1226,7 +1226,7 @@ describe('Open Badges, verified profile and the professional record', () => {
     const keyless = makeCtx();
     expect(await runCli(['career-export', '--token', 'tok_1'], keyless)).toBe(0);
     expect(keyless.client.getPublicCareerExport).toHaveBeenCalledWith('tok_1');
-    // The token is the capability — the public route must never demand a key.
+    // The token is the capability: the public route must never demand a key.
     expect(keyless.client.getCareerExport).not.toHaveBeenCalled();
     expect(keyless.errors.join('\n')).not.toContain('CREDDA_API_KEY');
   });
@@ -1274,7 +1274,7 @@ describe('Open Badges, verified profile and the professional record', () => {
   });
 });
 
-describe('quickstart — the one-command start', () => {
+describe('quickstart: the one-command start', () => {
   it('seeds, prints a readable table, and reads one subject back', async () => {
     const ctx = makeCtx({ apiKey: 'crd_test_abc' });
     expect(await runCli(['quickstart'], ctx)).toBe(0);
@@ -1297,12 +1297,12 @@ describe('quickstart — the one-command start', () => {
     const ctx = makeCtx({ apiKey: 'crd_test_abc' });
     expect(await runCli(['quickstart'], ctx)).toBe(0);
 
-    // Propose — with the platform key.
+    // Propose, with the platform key.
     expect(ctx.client.createConfirmationRequest).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'sbx_confirmation_demo', eventType: 'CONTRACT_FULFILLED' }),
       'crd_test_abc',
     );
-    // The subject can never be its own witness — the counterparty ref must differ.
+    // The subject can never be its own witness: the counterparty ref must differ.
     const [input] = (ctx.client.createConfirmationRequest as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(input.counterpartyRef).not.toBe(input.userId);
 

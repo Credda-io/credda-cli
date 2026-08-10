@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `credda` — entry point. All logic lives in cli.ts (testable); this file only
+ * `credda`: entry point. All logic lives in cli.ts (testable); this file only
  * wires the real environment: env vars, stdin/file reading, process exit.
  */
 
@@ -23,7 +23,7 @@ async function readInput(pathOrDash: string): Promise<string> {
   return readFile(pathOrDash, 'utf8');
 }
 
-// Raw authenticated GET for the CSV endpoints (?format=csv) — the typed SDK
+// Raw authenticated GET for the CSV endpoints (?format=csv): the typed SDK
 // returns parsed JSON only and documents CSV as a raw-fetch use case. Built
 // from the same base URL the client is configured with.
 const API_BASE = (process.env.CREDDA_API_URL ?? 'https://api.credda.io').replace(/\/+$/, '');
@@ -44,7 +44,7 @@ async function fetchCsv(path: string, apiKey: string): Promise<string> {
   return res.text();
 }
 
-// process.exitCode (not process.exit()) — a hard exit right after a fetch
+// process.exitCode (not process.exit()): a hard exit right after a fetch
 // trips a libuv assertion on Windows Node while handles are still closing.
 process.exitCode = await runCli(process.argv.slice(2), {
   client: new CreddaClient({ apiBase: process.env.CREDDA_API_URL }),

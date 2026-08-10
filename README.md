@@ -35,14 +35,14 @@ credda quickstart           # seed the sandbox with synthetic subjects, print
              --no-confirm   # stop after the seed; skip the confirmation loop
 ```
 
-Public — no API key:
+Public (no API key):
 
 ```sh
 credda lookup <token>       # trust check for a share token (GET /verify/:token)
 credda export <token>       # full self-verifying trust export bundle
 credda verify <file|->      # OFFLINE-verify a credential someone handed you:
                             #   a W3C VC-JWT, a compact Trust Credential, or a
-                            #   saved trust-export bundle — auto-detected.
+                            #   saved trust-export bundle (auto-detected).
                             #   '-' reads stdin. Exit 0 valid / 2 invalid.
 credda registry             # federated trust registry (/.well-known)
 credda did                  # issuer DID document
@@ -50,7 +50,7 @@ credda benchmarks           # cohort-benchmark catalog: the dimensions you can
                             #   benchmark on and the k-anonymity floor below
                             #   which no cohort is disclosed
 credda reason-codes         # adverse-action reason-code catalog (ECOA / Reg B).
-                            #   Credda supplies the attribution only — it is not
+                            #   Credda supplies the attribution only: it is not
                             #   a creditor and issues no notice.
 credda badges list          # the closed set of Open Badges 3.0 achievements
 credda badges get <badgeId> #   this issuer will sign, and one definition
@@ -58,14 +58,14 @@ credda outcome-templates [industry]
                             # how a business maps its work to Credda events, and
                             #   WHO confirms each outcome. Guidance only.
 credda professional-record public <token>
-                            # the professional record behind a share token —
-                            #   the token IS the subject's consent to present it
+                            # the professional record behind a share token
+                            #   (the token IS the subject's consent to present it)
 credda career-export --token <token>
                             # the whole verified record as a JSON Resume document,
                             #   behind a share token (no API key sent)
 ```
 
-Platform — set `CREDDA_API_KEY` (a `crd_live_…` platform key):
+Platform (set `CREDDA_API_KEY`, a `crd_live_…` platform key):
 
 ```sh
 credda score <userId>       # current score
@@ -93,7 +93,7 @@ credda users [--score-min <n>] [--score-max <n>] [--band <b>]
              [--sort <score|lastActivity|registered|externalId>]
              [--order <asc|desc>] [--cursor <c>] [--limit <n>]
                             # query + export your book of subjects. The filter
-                            #   set is closed and validated — no query DSL.
+                            #   set is closed and validated: no query DSL.
                             #   A subject with no score yet reports null, never
                             #   a placeholder; list those with --unscored.
 credda book-summary [same filters as "users"]
@@ -114,7 +114,7 @@ credda verified-profile <userId>
                             # how much of a subject's CLAIMED record
                             #   (education/skills/certifications/employment) is
                             #   third-party verified. Counts WHETHER a claim is
-                            #   verified, never how prestigious it is — and can
+                            #   verified, never how prestigious it is, and can
                             #   never move the Reliability Score.
 credda qualify <userId> --category <education|skill|certification|employment>
         [--label <l>] [--issuer <i>] [--verified-by <witness>]
@@ -123,7 +123,7 @@ credda qualify <userId> --category <education|skill|certification|employment>
                             #   third-party --verified-by witness.
 credda professional-record get <userId>
                             # résumé-shaped summary of a VERIFIED work record.
-                            #   Describes a record — not a hiring verdict, a
+                            #   Describes a record. Not a hiring verdict, a
                             #   background check, or a consumer report.
 credda professional-record credential <userId> [--ttl <seconds>]
                             # mint the signed, offline-verifiable credential
@@ -141,7 +141,7 @@ credda mint <userId>        # mint a share token
 credda revoke <userId>      # revoke a share token
 ```
 
-Confirmation requests — the counterparty-confirmation primitive. You propose an
+Confirmation requests: the counterparty-confirmation primitive. You propose an
 outcome and deliver the one-time token yourself; the event is written, verified,
 only when that distinct party confirms:
 
@@ -154,7 +154,7 @@ credda confirmations create --user worker_7 --type CONTRACT_FULFILLED \
                             # needs CREDDA_API_KEY. The token is shown ONCE;
                             #   creating a request writes no event.
 credda confirmations batch <file.json> [--idempotency-key <k>]
-                            # the ACTIVATION ENGINE — bulk-create up to 100
+                            # the ACTIVATION ENGINE: bulk-create up to 100
                             #   requests from a JSON file (an array of request
                             #   bodies, or { "requests": [...] }), warming a cold
                             #   ledger from your book. Needs CREDDA_API_KEY; each
@@ -163,8 +163,8 @@ credda confirmations list [--status PENDING] [--cursor <c>] [--limit <n>]
 credda confirmations get <id>
 credda confirmations cancel <id>          # only while PENDING
 
-# ⚠️ These two are the COUNTERPARTY's calls and take NO API key — they hold a
-# token, not a Credda account:
+# ⚠️ These two are the COUNTERPARTY's calls and take NO API key (they hold a
+# token, not a Credda account):
 credda confirmations preview <id> --token <t>
 credda confirmations respond <id> --token <t> --confirm
 credda confirmations respond <id> --token <t> --decline
@@ -173,7 +173,7 @@ credda confirmations respond <id> --token <t> --decline
                             #   there is no default: you must say which.
 ```
 
-Reference requests — the qualifications-half sibling of confirmations. A résumé
+Reference requests: the qualifications-half sibling of confirmations. A résumé
 claim (employment / education / certification / skill) becomes verified when the
 named third party who was there confirms it; a reference never moves the score:
 
@@ -189,8 +189,8 @@ credda references list [--status PENDING] [--cursor <c>] [--limit <n>]
 credda references get <id>
 credda references cancel <id>             # only while PENDING
 
-# ⚠️ These two are the REFERENCE's calls and take NO API key — they hold a
-# token, not a Credda account:
+# ⚠️ These two are the REFERENCE's calls and take NO API key (they hold a
+# token, not a Credda account):
 credda references preview <id> --token <t>
 credda references respond <id> --token <t> --confirm
 credda references respond <id> --token <t> --decline
@@ -199,7 +199,7 @@ credda references respond <id> --token <t> --decline
                             #   and there is no default: you must say which.
 ```
 
-Threshold policies — declarative "tell me when this line is crossed", delivered
+Threshold policies: declarative "tell me when this line is crossed", delivered
 as `policy.threshold_crossed` through your webhooks. Config only: a policy never
 reads into, blocks, or changes a score:
 
@@ -212,13 +212,13 @@ credda policies list [--cursor <c>] [--limit <n>]
 credda policies get <id>
 credda policies update <id> [--threshold <n>] [--direction <d>] [--band <b>]
         [--component <c>] [--name <n>] [--activate | --deactivate]
-                            # the metric is immutable — delete and recreate
+                            # the metric is immutable: delete and recreate
 credda policies delete <id>
 ```
 
-Score monitors — set `CREDDA_API_KEY`. Edge-triggered threshold/band watches
+Score monitors (set `CREDDA_API_KEY`). Edge-triggered threshold/band watches
 that deliver `monitor.triggered` through your subscribed webhooks;
-notification config only — a monitor never affects a score:
+notification config only (a monitor never affects a score):
 
 ```sh
 credda monitors list [--cursor <c>] [--limit <n>]
@@ -232,7 +232,7 @@ credda monitors create --user <externalId> --below 40
 credda monitors delete <id>
 ```
 
-Bulk screenings — set `CREDDA_API_KEY`. Async batch score reads (up to
+Bulk screenings (set `CREDDA_API_KEY`). Async batch score reads (up to
 10,000 ids per job), strictly read-only:
 
 ```sh
@@ -250,7 +250,7 @@ credda screenings results <id> --csv out.csv
                             # write the CSV attachment instead (raw fetch)
 ```
 
-Webhooks — set `CREDDA_API_KEY`:
+Webhooks (set `CREDDA_API_KEY`):
 
 ```sh
 credda webhooks list
@@ -271,7 +271,7 @@ CREDDA_WEBHOOK_SECRET=whsec_... credda listen 4141
 same check your production handler must do) and pretty-prints the payload.
 Credda delivers to public HTTPS only, so expose the port with your own tunnel
 (e.g. `cloudflared tunnel --url http://localhost:4141`) and register the
-tunnel URL as the webhook — the Stripe-CLI-style local loop without Credda
+tunnel URL as the webhook: the Stripe-CLI-style local loop without Credda
 running a tunneling service.
 
 Environment: `CREDDA_API_URL` overrides the API base (default
@@ -280,16 +280,16 @@ verification in `credda listen`.
 
 ## Design
 
-- `src/cli.ts` is the pure command router — no `process`, `fs`, or env access,
+- `src/cli.ts` is the pure command router: no `process`, `fs`, or env access,
   so the whole surface is unit-tested with a mocked `CreddaClient` (same
   pattern as `packages/mcp`'s `tools.ts`).
 - `src/index.ts` only wires the real environment (env vars, stdin/file
   reading, exit codes).
 - `verify` uses the SDK's offline verifiers (WebCrypto Ed25519 + StatusList
-  revocation) — the point is that a received credential can be checked
+  revocation). The point is that a received credential can be checked
   without trusting the wire it arrived on.
 - Every command is read-only against the score. `mint`/`revoke` manage a
-  share token — a capability, not a score write.
+  share token (a capability, not a score write).
 
 ## License
 
