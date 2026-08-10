@@ -1,9 +1,9 @@
 /**
- * Command router — pure of process/env/fs so it's testable with a mocked
+ * Command router: pure of process/env/fs so it's testable with a mocked
  * context (same pattern as packages/mcp's tools.ts).
  *
  * Every command is READ-ONLY against Credda's deterministic score. Nothing
- * here writes an Event, adjusts a score, or makes a trust decision — the CLI
+ * here writes an Event, adjusts a score, or makes a trust decision: the CLI
  * looks up and offline-verifies EXISTING, already-computed trust facts.
  * `mint`/`revoke` manage a share token (a capability, not a score write).
  */
@@ -27,7 +27,7 @@ import type {
 
 export interface CliContext {
   client: CreddaClient;
-  /** Platform API key from CREDDA_API_KEY — only needed for keyed commands. */
+  /** Platform API key from CREDDA_API_KEY, only needed for keyed commands. */
   apiKey?: string;
   out: (line: string) => void;
   err: (line: string) => void;
@@ -38,7 +38,7 @@ export interface CliContext {
     verifiableCredential: (vcJwt: string) => Promise<VerifiedVc>;
     trustExport: (bundle: TrustExport) => Promise<VerifiedTrustExport>;
   };
-  /** whsec_… signing secret from CREDDA_WEBHOOK_SECRET — used by `listen`. */
+  /** whsec_… signing secret from CREDDA_WEBHOOK_SECRET, used by `listen`. */
   webhookSecret?: string;
   /**
    * Starts the local webhook receiver (`credda listen`). Injected so the pure
@@ -46,7 +46,7 @@ export interface CliContext {
    */
   startListener?: (opts: { port: number; secret?: string }) => Promise<void>;
   /**
-   * Raw authenticated GET returning the response body as text — for the CSV
+   * Raw authenticated GET returning the response body as text, for the CSV
    * endpoints (`?format=csv`), which the typed SDK deliberately leaves to raw
    * fetch. `path` is relative to the `/api/v1` prefix.
    */
@@ -299,7 +299,7 @@ export const TEST_KEY_PREFIX = 'crd_test_';
  * A sandbox key, or an error that says exactly what to do next.
  *
  * The server refuses a live key anyway (`403 TEST_MODE_ONLY`), but a first-run
- * user does not deserve a 403 to interpret — the prefix is visible locally, so
+ * user does not deserve a 403 to interpret: the prefix is visible locally, so
  * the actionable message costs one string comparison. This is the "better
  * first-run errors" rule applied to the single most likely first mistake.
  */
@@ -339,7 +339,7 @@ function show(ctx: CliContext, value: unknown): void {
  * Also surfaces the machine code (so it can be looked up in
  * `GET /api/v1/errors`) and any `Retry-After` the server asked for.
  *
- * Duck-typed rather than `instanceof CreddaError` on purpose — the router
+ * Duck-typed rather than `instanceof CreddaError` on purpose: the router
  * imports only TYPES from the SDK, so it stays pure and trivially mockable.
  * Pure and exported for testing.
  */
@@ -453,10 +453,10 @@ const ID_HEADER_NAMES = /^(id|userid|user_id|externalid|external_id)$/i;
 
 /**
  * Parse the ids for `credda screen`. Inline args may be comma- and/or
- * space-separated. A file is one id per line — or a CSV, in which case only
+ * space-separated. A file is one id per line, or a CSV, in which case only
  * the FIRST column is read (a leading header row named id/userId/externalId
  * is skipped). Deduped, order-preserving. Deliberately simple: no quoted-CSV
- * handling — an id containing a comma isn't a valid external id anyway.
+ * handling (an id containing a comma isn't a valid external id anyway).
  */
 export function parseIdList(input: { inline?: string[]; fileText?: string }): string[] {
   const raw: string[] = [];
@@ -505,7 +505,7 @@ export function classifyCredentialInput(
       return { kind: 'export', bundle: parsed as TrustExport };
     }
   } catch {
-    // not JSON — fall through to string formats
+    // not JSON: fall through to string formats
   }
   if (/^eyJ[\w-]*\.[\w-]+\.[\w-]+$/.test(trimmed)) {
     return { kind: 'vc-jwt', jwt: trimmed };
@@ -559,13 +559,13 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
         const idWidth = Math.max(...seed.subjects.map((s) => s.userId.length), 7);
         ctx.out(`${pad('SUBJECT', idWidth)}  SCORE  BAND`);
         for (const s of seed.subjects) {
-          const score = s.finalScore === null ? '—' : String(s.finalScore);
-          ctx.out(`${pad(s.userId, idWidth)}  ${pad(score, 5)}  ${s.scoreBand ?? '—'}`);
+          const score = s.finalScore === null ? 'none' : String(s.finalScore);
+          ctx.out(`${pad(s.userId, idWidth)}  ${pad(score, 5)}  ${s.scoreBand ?? 'none'}`);
         }
         ctx.out('');
         for (const s of seed.subjects) ctx.out(`${s.userId}: ${s.record}`);
 
-        // Prove a plain read works — this is the call their integration makes.
+        // Prove a plain read works: this is the call their integration makes.
         const first = seed.subjects[0];
         if (first) {
           ctx.out('');
@@ -579,7 +579,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
         // counterparty-CONFIRMED evidence, and a developer used to be able to
         // finish the entire on-ramp without meeting POST /confirmations. So
         // the quickstart now closes the loop for real: propose an outcome,
-        // then respond as the counterparty (legitimate here — the create
+        // then respond as the counterparty (legitimate here: the create
         // response hands the raw token to whoever made the request, and this
         // is their own disposable sandbox), and print the verified event id.
         //
@@ -630,7 +630,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
             created.confirmationToken,
             'confirm',
           );
-          ctx.out(`     → ${decided.status}, ledger event ${decided.eventId ?? '—'}`);
+          ctx.out(`     → ${decided.status}, ledger event ${decided.eventId ?? '(none)'}`);
           ctx.out('     isVerified: true, earned, because a distinct token-holder acted. Declining');
           ctx.out('     would have written nothing at all: no confirmation is never read as a bad outcome.');
           ctx.out('');
@@ -711,14 +711,14 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
 
       case 'reason-codes':
         // Public adverse-action reason-code catalog (ECOA / Reg B). Credda
-        // supplies the attribution only — it is not a creditor.
+        // supplies the attribution only: it is not a creditor.
         show(ctx, await ctx.client.getReasonCodes());
         return 0;
 
       case 'outcome-templates': {
         // Public catalog: how a real-world business maps its work to Credda
         // events, and WHO the third-party witness is for each outcome. Guidance
-        // only — nothing here scores, writes, or ranks anyone. Optional
+        // only: nothing here scores, writes, or ranks anyone. Optional
         // positional industry slug filters to one set.
         const [industry] = args;
         show(ctx, await ctx.client.getOutcomeTemplates(industry));
@@ -771,7 +771,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
       }
 
       case 'benchmark': {
-        // Where one subject sits within a cohort — percentile + distribution.
+        // Where one subject sits within a cohort: percentile + distribution.
         const { positional, flags } = parseFlags(args, { valued: ['dimension'] });
         const userId = requireArg(positional, 'userId');
         show(
@@ -823,7 +823,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
       }
 
       case 'book-summary': {
-        // Size a segment of the book without paging it — same closed filter set.
+        // Size a segment of the book without paging it (same closed filter set).
         const { positional, flags } = parseFlags(args, {
           valued: [
             'score-min', 'score-max', 'band', 'subject-type', 'active-since',
@@ -886,13 +886,13 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
       }
 
       case 'verified-profile':
-        // A SECOND measure over the same ledger — it can never move a score.
+        // A SECOND measure over the same ledger (it can never move a score).
         show(ctx, await ctx.client.getVerifiedProfile(requireArg(args, 'userId'), requireKey(ctx)));
         return 0;
 
       case 'qualify': {
         // The claim is ALWAYS recorded; --verified-by decides whether it counts
-        // as verified. Never assert it yourself — name the witness.
+        // as verified. Never assert it yourself: name the witness.
         const { positional, flags } = parseFlags(args, {
           valued: ['category', 'label', 'issuer', 'verified-by'],
         });
@@ -1027,8 +1027,8 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
             return 0;
           }
           case 'batch': {
-            // The ACTIVATION ENGINE — bulk-create up to 100 requests from a
-            // JSON file: either an array of request bodies, or { requests: [...] }.
+            // The ACTIVATION ENGINE: bulk-create up to 100 requests from a
+            // JSON file (either an array of request bodies, or { requests: [...] }).
             const { positional, flags } = parseFlags(rest, { valued: ['idempotency-key'] });
             const file = requireArg(positional, 'file');
             const parsed = JSON.parse(await ctx.readInput(file)) as unknown;
@@ -1069,7 +1069,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
             show(ctx, await ctx.client.cancelConfirmation(requireArg(rest, 'id'), requireKey(ctx)));
             return 0;
           case 'preview': {
-            // KEYLESS on purpose — the counterparty holds a token, not a key.
+            // KEYLESS on purpose: the counterparty holds a token, not a key.
             const { positional, flags } = parseFlags(rest, { valued: ['token'] });
             const id = requireArg(positional, 'id');
             const token = strFlag(flags, 'token');
@@ -1164,7 +1164,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
             show(ctx, await ctx.client.cancelReference(requireArg(rest, 'id'), requireKey(ctx)));
             return 0;
           case 'preview': {
-            // KEYLESS on purpose — the reference holds a token, not a key.
+            // KEYLESS on purpose: the reference holds a token, not a key.
             const { positional, flags } = parseFlags(rest, { valued: ['token'] });
             const id = requireArg(positional, 'id');
             const token = strFlag(flags, 'token');
@@ -1425,7 +1425,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
             show(ctx, await ctx.client.getWebhookDeliveries(requireArg(rest, 'id'), key, 25));
             return 0;
           case 'recent': {
-            // Sample data across ALL endpoints — falls back to the event
+            // Sample data across ALL endpoints: falls back to the event
             // catalog's examples (isExample:true) when nothing has fired yet.
             const eventType = rest.length > 0 ? (rest as never) : undefined;
             show(ctx, await ctx.client.getRecentWebhookEvents(key, { limit: 25, eventType }));
@@ -1460,7 +1460,7 @@ export async function runCli(argv: string[], ctx: CliContext): Promise<number> {
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    // SDK errors already carry a "credda:" prefix — don't double it.
+    // SDK errors already carry a "credda:" prefix. Don't double it.
     ctx.err(message.startsWith('credda:') ? message : `credda: ${message}`);
     for (const line of errorHints(e)) ctx.err(line);
     return 1;
