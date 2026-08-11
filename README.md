@@ -1,3 +1,12 @@
+<p align="center">
+  <a href="https://credda.io">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Credda-io/credda-cli/main/assets/creddalockuplongdarktransparent.png">
+      <img alt="Credda" src="https://raw.githubusercontent.com/Credda-io/credda-cli/main/assets/creddalockuplonglighttransparent.png" width="360">
+    </picture>
+  </a>
+</p>
+
 > Source mirror for [`@credda/cli`](https://www.npmjs.com/package/@credda/cli). Install from npm: `npm install -g @credda/cli`. Canonical development happens in Credda internal tooling; this repo is for source and issues.
 
 # @credda/cli
