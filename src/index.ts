@@ -27,6 +27,13 @@ async function readInput(pathOrDash: string): Promise<string> {
 // returns parsed JSON only and documents CSV as a raw-fetch use case. Built
 // from the same base URL the client is configured with.
 const API_BASE = (process.env.CREDDA_API_URL ?? 'https://api.credda.io').replace(/\/+$/, '');
+
+/**
+ * The did:web identity of the API this CLI talks to, and the issuer every
+ * verification expects. `https://api.credda.io` is `did:web:api.credda.io`;
+ * point CREDDA_API_URL at staging and the expectation follows it.
+ */
+const ISSUER_DID = `did:web:${new URL(API_BASE).host.toLowerCase()}`;
 async function fetchCsv(path: string, apiKey: string): Promise<string> {
   const res = await fetch(`${API_BASE}/api/v1${path}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -56,9 +63,23 @@ process.exitCode = await runCli(process.argv.slice(2), {
   out: (line) => console.log(line),
   err: (line) => console.error(line),
   readInput,
+  // ⚠️ EVERY VERIFIER IS TOLD WHICH ISSUER IT EXPECTS.
+  //
+  // `credda verify` reads a credential handed over by somebody else, which is
+  // the whole point of it. did:web resolution proves the credential was signed
+  // by whoever controls the DID's host; it does NOT prove that host is Credda.
+  // Without an expected issuer, a credential minted by anyone with a domain
+  // verifies clean and the CLI prints it as valid.
+  //
+  // Stated explicitly rather than left to the SDK default, because this CLI
+  // pins an SDK line that does not have that default, and because a call site
+  // that says what it expects keeps saying it after the dependency moves.
+  // ISSUER_DID follows CREDDA_API_URL, so a CLI pointed at staging expects
+  // staging's issuer rather than production's.
   verifiers: {
     trustCredential: (credential) => verifyTrustCredential(credential),
-    verifiableCredential: (vcJwt) => verifyVerifiableCredential(vcJwt),
-    trustExport: (bundle) => verifyTrustExport(bundle),
+    verifiableCredential: (vcJwt) =>
+      verifyVerifiableCredential(vcJwt, { apiBase: API_BASE, issuer: ISSUER_DID }),
+    trustExport: (bundle) => verifyTrustExport(bundle, { apiBase: API_BASE, issuer: ISSUER_DID }),
   },
 });
