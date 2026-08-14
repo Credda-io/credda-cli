@@ -59,7 +59,7 @@ export interface CliContext {
   pollIntervalMs?: number;
 }
 
-export const VERSION = '0.1.5';
+export const VERSION = '0.1.6';
 
 export const HELP = `credda: portable trust from the terminal
 
