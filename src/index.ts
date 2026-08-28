@@ -1,85 +1,70 @@
-#!/usr/bin/env node
 /**
- * `credda`: entry point. All logic lives in cli.ts (testable); this file only
- * wires the real environment: env vars, stdin/file reading, process exit.
+ * `@credda/cli`: the public source mirror for the Credda CLI.
+ *
+ * ## What this package is
+ *
+ * The Credda CLI is published to npm as the unscoped package **`credda`**,
+ * which owns the `credda` executable. This package ships **no executable**.
+ * It is the public mirror of that CLI's command surface, and it exists so the
+ * surface is readable, diffable and issue-trackable outside the private
+ * engine repository.
+ *
+ * ## Why it ships no executable
+ *
+ * Up to 0.1.6 this package installed a binary called `credda` belonging to a
+ * different product (a trust-score client, retired). The engine CLI installs a
+ * binary called `credda` too, and two packages cannot own one name on a
+ * machine: whichever was installed second won, silently. 1.0.0 resolves that by
+ * giving the name up. See README.md, "The 0.1.6 break".
+ *
+ * ## What it exports
+ *
+ * `args.ts` and `commands.ts`, copied byte for byte from `apps/cli/src/` in the
+ * engine repository. Both are dependency-free by construction there — the
+ * parser is hand-rolled and the command table is plain data — which is the only
+ * reason a faithful copy is possible at all. Everything else in that CLI
+ * (`cli.ts`, `doctor.ts`, `triage.ts`, …) reaches into the engine, the
+ * database and the sandbox, and is not mirrored here.
+ *
+ * So what you can do with this package is ask, programmatically and offline,
+ * what commands and flags `credda` accepts and what its exit codes mean. What
+ * you cannot do with it is run an investigation. Install `credda` for that.
+ *
+ * The copies are verbatim, with no local edits, so that CI can compare them to
+ * the originals by hash. Do not add a header to them.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
-import {
-  CreddaClient,
-  verifyTrustCredential,
-  verifyVerifiableCredential,
-  verifyTrustExport,
-} from '@credda/js/headless';
-import { runCli } from './cli.js';
-import { startListener } from './listener.js';
+export {
+  GLOBAL_FLAGS,
+  parseArgs,
+  UsageError,
+  boolFlag,
+  numberFlag,
+  stringFlag,
+  type CommandSpec,
+  type FlagKind,
+  type FlagSpec,
+  type FlagValue,
+  type GlobalFlags,
+  type ParsedCommand,
+} from './args.js';
 
-async function readInput(pathOrDash: string): Promise<string> {
-  if (pathOrDash === '-') {
-    const chunks: Buffer[] = [];
-    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-    return Buffer.concat(chunks).toString('utf8');
-  }
-  return readFile(pathOrDash, 'utf8');
-}
+export {
+  aliases,
+  canonicalCommand,
+  COMMANDS,
+  commandUsage,
+  EXIT,
+  EXIT_CODE_HELP,
+  RESERVED_EXIT_CODES,
+  rootUsage,
+} from './commands.js';
 
-// Raw authenticated GET for the CSV endpoints (?format=csv): the typed SDK
-// returns parsed JSON only and documents CSV as a raw-fetch use case. Built
-// from the same base URL the client is configured with.
-const API_BASE = (process.env.CREDDA_API_URL ?? 'https://api.credda.io').replace(/\/+$/, '');
+/** The npm package that ships the `credda` executable this surface describes. */
+export const EXECUTABLE_PACKAGE = 'credda';
 
-/**
- * The did:web identity of the API this CLI talks to, and the issuer every
- * verification expects. `https://api.credda.io` is `did:web:api.credda.io`;
- * point CREDDA_API_URL at staging and the expectation follows it.
- */
-const ISSUER_DID = `did:web:${new URL(API_BASE).host.toLowerCase()}`;
-async function fetchCsv(path: string, apiKey: string): Promise<string> {
-  const res = await fetch(`${API_BASE}/api/v1${path}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const body = (await res.json()) as { error?: string; message?: string };
-      detail = body.error ?? body.message ?? '';
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new Error(detail || `request failed (${res.status})`);
-  }
-  return res.text();
-}
+/** Where the mirrored files come from, so a reader can find the original. */
+export const MIRROR_SOURCE = 'apps/cli/src/ in the Credda engine repository';
 
-// process.exitCode (not process.exit()): a hard exit right after a fetch
-// trips a libuv assertion on Windows Node while handles are still closing.
-process.exitCode = await runCli(process.argv.slice(2), {
-  client: new CreddaClient({ apiBase: process.env.CREDDA_API_URL }),
-  fetchCsv,
-  writeFile: (path, content) => writeFile(path, content, 'utf8'),
-  apiKey: process.env.CREDDA_API_KEY,
-  webhookSecret: process.env.CREDDA_WEBHOOK_SECRET,
-  startListener,
-  out: (line) => console.log(line),
-  err: (line) => console.error(line),
-  readInput,
-  // ⚠️ EVERY VERIFIER IS TOLD WHICH ISSUER IT EXPECTS.
-  //
-  // `credda verify` reads a credential handed over by somebody else, which is
-  // the whole point of it. did:web resolution proves the credential was signed
-  // by whoever controls the DID's host; it does NOT prove that host is Credda.
-  // Without an expected issuer, a credential minted by anyone with a domain
-  // verifies clean and the CLI prints it as valid.
-  //
-  // Stated explicitly rather than left to the SDK default, because this CLI
-  // pins an SDK line that does not have that default, and because a call site
-  // that says what it expects keeps saying it after the dependency moves.
-  // ISSUER_DID follows CREDDA_API_URL, so a CLI pointed at staging expects
-  // staging's issuer rather than production's.
-  verifiers: {
-    trustCredential: (credential) => verifyTrustCredential(credential),
-    verifiableCredential: (vcJwt) =>
-      verifyVerifiableCredential(vcJwt, { apiBase: API_BASE, issuer: ISSUER_DID }),
-    trustExport: (bundle) => verifyTrustExport(bundle, { apiBase: API_BASE, issuer: ISSUER_DID }),
-  },
-});
+/** The files copied verbatim. CI compares each to its original by hash. */
+export const MIRRORED_FILES: readonly string[] = ['args.ts', 'commands.ts'];

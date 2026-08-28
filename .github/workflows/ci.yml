@@ -24,10 +24,14 @@ jobs:
       - run: npm run build
 
   surface-parity:
+    # src/args.ts and src/commands.ts are COPIES of the engine CLI's own files.
+    # This job proves they are still byte-identical to their originals, which is
+    # the only thing that makes the documented command surface trustworthy.
+    #
     # Fails rather than skips when MONOREPO_READ_TOKEN is absent, so fork PRs
     # fail here by design: a parity check that silently does not run is worse
     # than none.
-    name: surface parity with the monorepo
+    name: surface parity with the engine CLI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,15 +39,38 @@ jobs:
           path: mirror
       - uses: actions/checkout@v4
         with:
-          repository: Credda-io/api
+          # The engine repository, per its own package.json repository field.
+          # HUMAN: confirm this slug after the org rename lands.
+          repository: codereefai/core
           token: ${{ secrets.MONOREPO_READ_TOKEN }}
-          path: monorepo
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Compare
+          path: engine
+      - name: Compare each mirrored file to its original, byte for byte
         run: |
-          node monorepo/scripts/package-surface.mjs monorepo/packages/cli mirror monorepo/scripts/package-surface-known.json
+          set -euo pipefail
+          status=0
+          for f in args.ts commands.ts; do
+            src="engine/apps/cli/src/$f"
+            dst="mirror/src/$f"
+            if [ ! -f "$src" ]; then
+              echo "::error::$src is missing in the engine checkout. The CLI moved; update this job and the mirror."
+              status=1
+              continue
+            fi
+            if cmp -s "$src" "$dst"; then
+              echo "ok: $f matches $src"
+            else
+              echo "::error::mirror/src/$f has drifted from $src"
+              diff -u "$src" "$dst" || true
+              status=1
+            fi
+          done
+          # The mirror must not quietly gain or lose a mirrored file either.
+          expected=$(node -e "const s=require('fs').readFileSync('mirror/src/index.ts','utf8');const m=s.match(/MIRRORED_FILES[^=]*=\s*\[([^\]]*)\]/);console.log(m[1].replace(/['\s]/g,''))")
+          if [ "$expected" != "args.ts,commands.ts" ]; then
+            echo "::error::MIRRORED_FILES says '$expected'; this job compares args.ts,commands.ts. Update both together."
+            status=1
+          fi
+          exit $status
 
   secret-scan:
     name: gitleaks

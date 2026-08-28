@@ -1,7 +1,7 @@
 {
   "name": "@credda/cli",
-  "version": "0.1.6",
-  "description": "Official Credda CLI: look up and offline-verify portable trust from the terminal. Public trust checks, credential verification, platform score reads, share-token minting. A thin client over @credda/js; no scoring logic lives here.",
+  "version": "1.0.0",
+  "description": "Public source mirror of the Credda CLI command surface. Ships no executable: install the `credda` package for the CLI itself. Replaces the retired 0.x, which was an unrelated product.",
   "license": "MIT",
   "homepage": "https://github.com/Credda-io/credda-cli#readme",
   "bugs": {
@@ -9,23 +9,24 @@
     "email": "martin@credda.io"
   },
   "type": "module",
-  "bin": {
-    "credda": "dist/index.js"
-  },
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
     "dist",
-    "!dist/**/*.test.*"
+    "!dist/**/*.test.*",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "@credda/js": "^0.8.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",
@@ -43,11 +44,10 @@
   "keywords": [
     "credda",
     "cli",
-    "command-line",
-    "trust",
-    "reliability-score",
-    "verifiable-credentials",
-    "sdk"
+    "mirror",
+    "command-surface",
+    "debugging",
+    "bug-reproduction"
   ],
   "engines": {
     "node": ">=18"
