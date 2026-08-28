@@ -39,9 +39,11 @@ jobs:
           path: mirror
       - uses: actions/checkout@v4
         with:
-          # The engine repository, per its own package.json repository field.
-          # HUMAN: confirm this slug after the org rename lands.
-          repository: codereefai/core
+          # The engine repository. The org rename has landed: `core`'s own
+          # remote is git@github.com:Credda-io/core.git. The old
+          # `codereefai/core` still resolved via GitHub's transfer redirect,
+          # which is exactly why it needed writing out rather than leaving.
+          repository: Credda-io/core
           token: ${{ secrets.MONOREPO_READ_TOKEN }}
           path: engine
       - name: Compare each mirrored file to its original, byte for byte

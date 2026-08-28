@@ -21,6 +21,15 @@ credda --help
 Node 24 or newer for `credda`. This mirror package needs Node 18 and is a
 library, not a tool.
 
+> **Not installable yet — checked 2026-08-28.** The `credda` package is not on
+> the public npm registry (`https://registry.npmjs.org/credda` returns 404), so
+> the command above fails today. The latest `@credda/cli` on npm is still
+> **0.1.6**, the retired 0.x described below; the `1.0.0` in this repository's
+> `package.json` is unpublished on purpose — see [RELEASE.md](RELEASE.md), which
+> holds publication until a human has agreed to redefine a live package name.
+> Treat this block as what the install *will* be, not as a command that works
+> now.
+
 > ### The 0.1.6 break
 >
 > Up to and including **0.1.6**, `npm i -g @credda/cli` installed something
@@ -36,10 +45,14 @@ library, not a tool.
 
 ## What Credda is
 
-Credda finds defects and vulnerabilities in a company's production and QA
-environments, reproduces the failure, and reports what it established and what
-it did not. The product it is being built toward opens a pull request carrying a
-fix and the test that proves it; it proposes and never merges.
+Credda finds the bugs and security vulnerabilities in a company's production and
+QA environments, reproduces the failure, diagnoses the cause, writes the patch,
+proves it with a test that fails before and passes after, and opens a pull
+request. It proposes and never merges.
+
+The developer surface is [api.credda.io](https://api.credda.io) — the
+[API reference](https://api.credda.io/reference) and
+[`openapi.json`](https://api.credda.io/openapi.json).
 
 **Status of the fix path, as of 2026-08-23:** the Fixer, the Verifier and
 pull-request authoring are built and tested and are off the shipped path. The
