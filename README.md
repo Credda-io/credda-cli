@@ -1,313 +1,171 @@
 <p align="center">
   <a href="https://credda.io">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Credda-io/credda-cli/main/assets/creddaseallockupdarktransparent.png">
-      <img alt="Credda" src="https://raw.githubusercontent.com/Credda-io/credda-cli/main/assets/creddaseallockuplighttransparent.png" width="480">
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Credda-io/credda-cli/main/assets/credda-lockup-white.png">
+      <img alt="Credda" src="https://raw.githubusercontent.com/Credda-io/credda-cli/main/assets/credda-lockup-black.png" width="480">
     </picture>
   </a>
 </p>
 
-> Source mirror for [`@credda/cli`](https://www.npmjs.com/package/@credda/cli). Install from npm: `npm install -g @credda/cli`. Canonical development happens in Credda internal tooling; this repo is for source and issues.
-
 # @credda/cli
 
-The official Credda CLI: portable trust from the terminal. A thin client over
-[`@credda/js`](https://www.npmjs.com/package/@credda/js)'s headless export;
-**no scoring logic lives here** (the deterministic score is computed only by
-the API's `score.service`).
-
-## Install
+**This package installs no command.** It is the public source mirror and issue
+tracker for the command surface of the Credda CLI, which is published to npm
+under its own, unscoped name:
 
 ```sh
-npm install -g @credda/cli   # or: pnpm add -g @credda/cli
-credda help
+npm install -g credda     # the CLI itself
+credda --help
 ```
 
-Node 20 or newer. Nothing else to configure for the public commands below.
+Node 24 or newer for `credda`. This mirror package needs Node 18 and is a
+library, not a tool.
 
-Prefer not to install globally? `npx @credda/cli help` works the same way.
+> ### The 0.1.6 break
+>
+> Up to and including **0.1.6**, `npm i -g @credda/cli` installed something
+> else entirely: a client for a 0–100 reliability score and portable trust
+> credentials. Credda no longer builds that product, and every one of those
+> commands is gone from **1.0.0**.
+>
+> 0.1.6 also installed a binary named `credda`. So does the `credda` package.
+> Two packages cannot own one executable name, so this one gives it up: 1.0.0
+> declares no `bin`. If you depend on the old behaviour, **pin
+> `@credda/cli@0.1.6`** — it is untouched and still on the registry, nothing has
+> been unpublished — and read [CHANGELOG.md](CHANGELOG.md) for the migration.
 
-`credda help` always lists exactly what the version you installed can do, so
-treat it, not this file, as the authority on your copy. `credda --version`
-prints that version.
+## What Credda is
 
-## Commands
+Credda finds defects and vulnerabilities in a company's production and QA
+environments, reproduces the failure, and reports what it established and what
+it did not. The product it is being built toward opens a pull request carrying a
+fix and the test that proves it; it proposes and never merges.
 
-Start here, if you hold a sandbox key (`CREDDA_API_KEY` of the `crd_test_`
-kind; a live key is refused before anything happens):
+**Status of the fix path, as of 2026-08-23:** the Fixer, the Verifier and
+pull-request authoring are built and tested and are off the shipped path. The
+gate is a model-backed run: across all seven engine databases in the tree there
+were **468 investigations, 0 patches and 0 verification runs**, and every
+`model_usage` row carried `provider='heuristic'` with zero tokens
+(`docs/strategy/v41-gates.md`). Restoring the path is the plan of record and its
+procedure is written down; there is deliberately **no flag that turns it on**,
+because a flag would put an unevidenced claim one environment variable away from
+a customer. Metrics for stages that have not run report `NOT_ATTEMPTED_IN_V1`
+rather than a measured zero. See ADR 0018, *The product is the fix*.
 
-```sh
-credda quickstart           # seed the sandbox with synthetic subjects, print
-                            #   their real scores, then close the counterparty-
-                            #   confirmation loop so you finish holding a real
-                            #   VERIFIED event rather than a number you read
-             --no-confirm   # stop after the seed; skip the confirmation loop
+What the shipped CLI therefore does today: prepare an environment, reproduce the
+reported failure, capture its failure signature as evidence, diagnose a cause
+where the evidence supports one, and report all of it. It edits no code and
+needs no write access to reach that.
+
+## The command surface
+
+Read off `src/commands.ts`, which is a byte-for-byte copy of the engine's own
+command table. `credda --help` is generated from that same table, so it is the
+authority on the copy you installed.
+
+```
+credda investigate <repo-path> <description | @file | ->  [options]
 ```
 
-Public (no API key):
+| Command | What it does |
+| --- | --- |
+| `investigate` | Reproduce a reported failure and report what was found |
+| `triage` | Say what Credda could not use in a report, or say nothing |
+| `doctor` | Check that this environment can reproduce a bug |
+| `reap` | Remove sandbox containers left behind by an interrupted run |
+| `init` | Write a `credda.config.json` with documented defaults |
+| `status` | List recent investigations |
+| `report` | Show what an investigation established, and what it did not |
+| `inspect` | Show everything one run recorded, in full |
+| `events` | Show the event timeline for an investigation |
 
-```sh
-credda lookup <token>       # trust check for a share token (GET /verify/:token)
-credda export <token>       # full self-verifying trust export bundle
-credda verify <file|->      # OFFLINE-verify a credential someone handed you:
-                            #   a W3C VC-JWT, a compact Trust Credential, or a
-                            #   saved trust-export bundle (auto-detected).
-                            #   '-' reads stdin. Exit 0 valid / 2 invalid.
-credda registry             # federated trust registry (/.well-known)
-credda did                  # issuer DID document
-credda benchmarks           # cohort-benchmark catalog: the dimensions you can
-                            #   benchmark on and the k-anonymity floor below
-                            #   which no cohort is disclosed
-credda reason-codes         # adverse-action reason-code catalog (ECOA / Reg B).
-                            #   Credda supplies the attribution only: it is not
-                            #   a creditor and issues no notice.
-credda badges list          # the closed set of Open Badges 3.0 achievements
-credda badges get <badgeId> #   this issuer will sign, and one definition
-credda outcome-templates [industry]
-                            # how a business maps its work to Credda events, and
-                            #   WHO confirms each outcome. Guidance only.
-credda professional-record public <token>
-                            # the professional record behind a share token
-                            #   (the token IS the subject's consent to present it)
-credda career-export --token <token>
-                            # the whole verified record as a JSON Resume document,
-                            #   behind a share token (no API key sent)
+Aliases, kept permanently because docs, scripts and the external benchmark
+harness use them: **`fix`** and **`resolve`** are `investigate`; **`resolution`**
+is `report`. They parse identically. Their `--help` prints what the command
+actually produces, so an old name is never read as a promise about the output.
+
+### Flags
+
+`investigate` (and its aliases):
+
+| Flag | Value | Default |
+| --- | --- | --- |
+| `--sandbox` | `local` \| `native` \| `docker` | `local` |
+| `--provider` | `auto` \| `heuristic` \| `openai-compatible` | `auto` |
+| `--budget-minutes` | `<n>` wall-clock budget | `20` |
+| `--max-turns` | `<n>` model calls across all agent roles | `120` |
+| `--out` | `<file>` also write this run's machine-readable result as JSON | — |
+
+Other commands: `triage --repo <path>`; `report`/`resolution` `--markdown`;
+`doctor --deep`; `reap --dry-run --max-age-hours <n>`; `init --global --force`;
+`status --limit <n>`; `events --since <n>` and `--follow` (`-f`).
+
+Global: `--help` (`-h`), `--version`, `--json`, `--quiet`, `--verbose`,
+`--no-color`.
+
+A description is given inline, as `@file`, or as `-` for stdin. `credda triage`
+takes a file and never an inline string, because the body is text a stranger
+typed and a file name does not go through a shell.
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | The answer was reached and nothing failed. Abstention is a success: `NO_CHANGE_REQUIRED` and `INCONCLUSIVE` both exit 0. For `triage`, 0 means it correctly had nothing to say. |
+| 1 | Internal error. Credda failed; no verdict. |
+| 2 | Usage error. Nothing was run. |
+| 3 | **Reserved**, `PATCH_REJECTED`. Held open rather than reused; no run of this version returns it. |
+| 4 | Cancelled by the operator. |
+| 5 | `NO_RUNNABLE_CHECK`: nothing runnable could be derived from the report. A fact about the report, not about your code, kept separate from 0 so `credda … && deploy` cannot read it as a pass. |
+| 6 | `COMMENT_READY`, from `triage` only: there is a comment and it is on stdout. |
+
+Triage's silence is exit 0 and its comment is exit 6, that way round on purpose:
+about half of real inbound issues produce nothing worth saying, and every way of
+misreading the code then fails toward not posting. Do **not** write
+`credda triage issue.md > c.md && post c.md` — it posts on the silent path and
+stays quiet on the speaking one.
+
+### Environment
+
+`CREDDA_HOME`, `CREDDA_PROVIDER`, `CREDDA_MODEL`, `CREDDA_SANDBOX`,
+`CREDDA_LOG_LEVEL`, `NO_COLOR`, plus `ANTHROPIC_API_KEY`,
+`CREDDA_OPENAI_API_KEY` (`NVIDIA_API_KEY` accepted as a second name),
+`CREDDA_OPENAI_BASE_URL`, `CREDDA_OPENAI_MODEL` and `CREDDA_OPENAI_RPM`.
+`credda --help` documents each. Configuration precedence, highest first: the
+flag, the environment variable, `credda.config.json` searched upward from the
+working directory then `$CREDDA_HOME/credda.config.json`, the built-in default.
+
+## What is in this repository
+
+```
+src/args.ts       copied verbatim from the engine's apps/cli/src/args.ts
+src/commands.ts   copied verbatim from the engine's apps/cli/src/commands.ts
+src/index.ts      this package's export surface (mirror-only, written here)
 ```
 
-Platform (set `CREDDA_API_KEY`, a `crd_live_…` platform key):
+Those two files are copied rather than summarised because they are
+dependency-free in the engine by construction — the parser is hand-rolled and
+the table is plain data — so a faithful copy is possible and CI can compare each
+to its original by hash. **Do not hand-edit them**; change the engine and copy
+across. Everything else in that CLI reaches into the engine, the database and
+the sandbox, and is not mirrored.
 
-```sh
-credda score <userId>       # current score
-credda explain <userId>     # factor-level explanation
-credda components <userId>  # six named 0-100 components
-credda risk <userId>        # advisory risk signals
-credda trust-summary <userId> [--narrative]
-                            # deterministic, evidence-based summary + strengths
-                            #   + risks. It explains; it is never a verdict.
-                            #   --narrative adds an advisory AI retelling.
-credda benchmark <userId> [--dimension <d>]
-                            # where the subject sits in its cohort: percentile
-                            #   + the cohort distribution. `available:false`
-                            #   when the cohort is below the k-anonymity floor
-                            #   (insufficient_data) or the subject has no score
-                            #   yet (no_score).
-credda distribution [--dimension <d>] [--cohort <c>]
-                            # aggregate, k-anonymised cohort distribution.
-                            #   Omit --cohort for every cohort on the dimension.
-credda users [--score-min <n>] [--score-max <n>] [--band <b>]
-             [--subject-type <PERSON|AGENT|ORGANIZATION>]
-             [--scored|--unscored] [--frozen]
-             [--active-since <iso>] [--registered-since <iso>]
-             [--registered-before <iso>] [--verified] [--min-verified <n>]
-             [--sort <score|lastActivity|registered|externalId>]
-             [--order <asc|desc>] [--cursor <c>] [--limit <n>]
-                            # query + export your book of subjects. The filter
-                            #   set is closed and validated: no query DSL.
-                            #   A subject with no score yet reports null, never
-                            #   a placeholder; list those with --unscored.
-credda book-summary [same filters as "users"]
-                            # size a segment WITHOUT paging it: how many match,
-                            #   how many are scored, band mix, median/mean.
-                            #   Null (not 0) when nothing in it is scored.
-credda usage [days]         # your platform's metered usage (trailing window)
-credda usage --from 2026-06-01 --to 2026-06-30
-                            # explicit statement range (mutually exclusive
-                            # with [days])
-credda usage --csv usage.csv
-                            # write the flat CSV statement to a file
-                            # (raw ?format=csv fetch; combines with either window)
-credda activity [--action <A>] [--from <t>] [--to <t>] [--cursor <c>] [--limit <n>]
-                            # your platform's own activity/audit log,
-                            # newest-first, cursor-paginated
-credda verified-profile <userId>
-                            # how much of a subject's CLAIMED record
-                            #   (education/skills/certifications/employment) is
-                            #   third-party verified. Counts WHETHER a claim is
-                            #   verified, never how prestigious it is, and can
-                            #   never move the Reliability Score.
-credda qualify <userId> --category <education|skill|certification|employment>
-        [--label <l>] [--issuer <i>] [--verified-by <witness>]
-                            # record a qualification claim. Always recorded;
-                            #   counts as VERIFIED only with a genuine
-                            #   third-party --verified-by witness.
-credda professional-record get <userId>
-                            # résumé-shaped summary of a VERIFIED work record.
-                            #   Describes a record. Not a hiring verdict, a
-                            #   background check, or a consumer report.
-credda professional-record credential <userId> [--ttl <seconds>]
-                            # mint the signed, offline-verifiable credential
-                            #   (+ an "Add to LinkedIn" certification link)
-credda reliability-report <userId> [--recent <n>] [--benchmark]
-                            # the consolidated worker reliability report a
-                            #   staffing agency or employer weighs. EVIDENCE, not
-                            #   a hire / place / rank verdict or a consumer report.
-                            #   Use --token <token> for the public worker-consent
-                            #   route (NO API key).
-credda career-export <userId>
-                            # the whole verified record as an open JSON Resume
-                            #   document. Use --token <token> for the public route.
-credda mint <userId>        # mint a share token
-credda revoke <userId>      # revoke a share token
+So this package answers, offline, what `credda` accepts:
+
+```ts
+import { COMMANDS, EXIT, rootUsage, parseArgs } from '@credda/cli';
 ```
 
-Confirmation requests: the counterparty-confirmation primitive. You propose an
-outcome and deliver the one-time token yourself; the event is written, verified,
-only when that distinct party confirms:
+It cannot run an investigation, and it does not pretend to. Canonical
+development happens in the engine repository; this repo carries the source and
+the issues.
 
-```sh
-credda confirmations create --user worker_7 --type CONTRACT_FULFILLED \
-        --counterparty client_42 --counterparty-name "Acme Ltd" \
-        --description "Kitchen refit" [--stake HIGH] [--value 1200] \
-        [--due <iso>] [--completed <iso>] [--return-url <url>] \
-        [--expires-in 14] [--idempotency-key <k>]
-                            # needs CREDDA_API_KEY. The token is shown ONCE;
-                            #   creating a request writes no event.
-credda confirmations batch <file.json> [--idempotency-key <k>]
-                            # the ACTIVATION ENGINE: bulk-create up to 100
-                            #   requests from a JSON file (an array of request
-                            #   bodies, or { "requests": [...] }), warming a cold
-                            #   ledger from your book. Needs CREDDA_API_KEY; each
-                            #   ok item's token is shown ONCE.
-credda confirmations list [--status PENDING] [--cursor <c>] [--limit <n>]
-credda confirmations get <id>
-credda confirmations cancel <id>          # only while PENDING
+## Contributing
 
-# ⚠️ These two are the COUNTERPARTY's calls and take NO API key (they hold a
-# token, not a Credda account):
-credda confirmations preview <id> --token <t>
-credda confirmations respond <id> --token <t> --confirm
-credda confirmations respond <id> --token <t> --decline
-                            # --confirm writes the verified event; --decline
-                            #   writes nothing. Single-use either way, and
-                            #   there is no default: you must say which.
-```
-
-Reference requests: the qualifications-half sibling of confirmations. A résumé
-claim (employment / education / certification / skill) becomes verified when the
-named third party who was there confirms it; a reference never moves the score:
-
-```sh
-credda references create --user worker_7 --category employment \
-        --counterparty manager_42 --label "Senior Engineer" \
-        --issuer "Acme Ltd" [--jurisdiction US-CA] [--reference EMP-9910] \
-        [--counterparty-name "Dana Lee"] [--description <d>] \
-        [--return-url <url>] [--expires-in 14] [--idempotency-key <k>]
-                            # needs CREDDA_API_KEY. The token is shown ONCE;
-                            #   creating a request records no qualification.
-credda references list [--status PENDING] [--cursor <c>] [--limit <n>]
-credda references get <id>
-credda references cancel <id>             # only while PENDING
-
-# ⚠️ These two are the REFERENCE's calls and take NO API key (they hold a
-# token, not a Credda account):
-credda references preview <id> --token <t>
-credda references respond <id> --token <t> --confirm
-credda references respond <id> --token <t> --decline
-                            # --confirm records the verified qualification;
-                            #   --decline writes nothing. Single-use either way,
-                            #   and there is no default: you must say which.
-```
-
-Threshold policies: declarative "tell me when this line is crossed", delivered
-as `policy.threshold_crossed` through your webhooks. Config only: a policy never
-reads into, blocks, or changes a score:
-
-```sh
-credda policies create --name "Watch 60" --user worker_7 \
-        --metric score --direction down --threshold 60
-credda policies create --name "Anyone entering At Risk" --all \
-        --metric band --direction enter --band "At Risk"
-credda policies list [--cursor <c>] [--limit <n>]
-credda policies get <id>
-credda policies update <id> [--threshold <n>] [--direction <d>] [--band <b>]
-        [--component <c>] [--name <n>] [--activate | --deactivate]
-                            # the metric is immutable: delete and recreate
-credda policies delete <id>
-```
-
-Score monitors (set `CREDDA_API_KEY`). Edge-triggered threshold/band watches
-that deliver `monitor.triggered` through your subscribed webhooks;
-notification config only (a monitor never affects a score):
-
-```sh
-credda monitors list [--cursor <c>] [--limit <n>]
-credda monitors get <id>
-credda monitors create --user <externalId> --below 40
-                            # at least one condition required:
-                            #   --below <score>   downward crossing (also fires
-                            #                     on a FIRST score already below)
-                            #   --above <score>   upward crossing
-                            #   --band-change     any band change
-credda monitors delete <id>
-```
-
-Bulk screenings (set `CREDDA_API_KEY`). Async batch score reads (up to
-10,000 ids per job), strictly read-only:
-
-```sh
-credda screen u1,u2 u3      # ids inline, comma/space separated
-credda screen --file roster.csv
-                            # one id per line, or a CSV whose FIRST column is
-                            # the id (a leading id/userId/externalId header
-                            # row is skipped; no quoted-CSV handling)
-credda screen u1,u2 --wait  # poll until the job finishes, print the summary
-                            # (exit 1 if the job FAILED)
-credda screenings list [--cursor <c>] [--limit <n>]
-credda screenings get <id>  # job status + summary
-credda screenings results <id>            # per-user results as JSON
-credda screenings results <id> --csv out.csv
-                            # write the CSV attachment instead (raw fetch)
-```
-
-Webhooks (set `CREDDA_API_KEY`):
-
-```sh
-credda webhooks list
-credda webhooks create https://hooks.you/credda score.updated score.band_changed
-                            # signing secret shown ONCE
-credda webhooks delete <id>
-credda webhooks test <id>   # synthetic signed delivery
-credda webhooks deliveries <id>   # recent attempts, incl. retries
-```
-
-Local development:
-
-```sh
-CREDDA_WEBHOOK_SECRET=whsec_... credda listen 4141
-```
-
-`credda listen` runs a local receiver that HMAC-verifies each delivery (the
-same check your production handler must do) and pretty-prints the payload.
-Credda delivers to public HTTPS only, so expose the port with your own tunnel
-(e.g. `cloudflared tunnel --url http://localhost:4141`) and register the
-tunnel URL as the webhook: the Stripe-CLI-style local loop without Credda
-running a tunneling service.
-
-Environment: `CREDDA_API_URL` overrides the API base (default
-`https://api.credda.io`); `CREDDA_WEBHOOK_SECRET` enables signature
-verification in `credda listen`.
-
-## Design
-
-- `src/cli.ts` is the pure command router: no `process`, `fs`, or env access,
-  so the whole surface is unit-tested with a mocked `CreddaClient` (same
-  pattern as `packages/mcp`'s `tools.ts`).
-- `src/index.ts` only wires the real environment (env vars, stdin/file
-  reading, exit codes).
-- `verify` uses the SDK's offline verifiers (WebCrypto Ed25519 + StatusList
-  revocation). The point is that a received credential can be checked
-  without trusting the wire it arrived on.
-- Every command is read-only against the score. `mint`/`revoke` manage a
-  share token (a capability, not a score write).
+Issues here are read. Pull requests against `src/args.ts` and `src/commands.ts`
+cannot be merged here — they would be overwritten by the next copy — so open an
+issue describing the change to the surface instead.
 
 ## License
 
 MIT © Credda. See [LICENSE](LICENSE).
-
----
-
-Part of the Credda SDK family:
-[`@credda/js`](https://github.com/Credda-io/credda-js) ·
-[`credda-go`](https://github.com/Credda-io/credda-go) ·
-[`@credda/cli`](https://github.com/Credda-io/credda-cli) ·
-[`@credda/mcp-server`](https://github.com/Credda-io/credda-mcp)

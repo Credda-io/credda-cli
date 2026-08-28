@@ -13,6 +13,13 @@ name: publish
 #    job republishes the same build under the @credda-io scope using the
 #    built-in GITHUB_TOKEN. The public npmjs name (@credda/...) is unchanged.
 #
+# 1.0.0 IS A BREAKING RELEASE. Everything published under this name at 0.1.6
+# and earlier was a different product, and 0.1.6 installed a `credda` binary
+# that this package no longer declares. Do not tag v1.0.0 until a human has
+# read CHANGELOG.md and decided that 0.1.6 should be `npm deprecate`d with a
+# pointer to it. Deprecation is a manual step: it is deliberately not automated
+# here, because it edits the metadata of an already-published version.
+#
 # A published version cannot be unpublished, so releasing is gated on a tag.
 # The tag version should match package.json. workflow_dispatch is available
 # for a manual re-run.
@@ -38,6 +45,8 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - run: npm install
+      - run: npm run typecheck
+      - run: npm test
       - run: npm run build
       - run: npm publish --provenance --access public
         env:
@@ -56,6 +65,8 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@credda-io'
       - run: npm install
+      - run: npm run typecheck
+      - run: npm test
       - run: npm run build
       - name: Retarget the build to the Credda-io GitHub Packages scope
         run: |
