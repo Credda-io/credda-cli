@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { COMMANDS, EXIT, RESERVED_EXIT_CODES, canonicalCommand, commandUsage, rootUsage } from './commands.js';
+import { COMMANDS, EXIT, EXIT_CODE_HELP, RESERVED_EXIT_CODES, canonicalCommand, commandUsage, rootUsage } from './commands.js';
 import { UsageError, parseArgs, stringFlag, numberFlag, boolFlag } from './args.js';
 
 const parse = (argv: string[]) => parseArgs(argv, COMMANDS);
@@ -103,8 +103,19 @@ describe('parsing', () => {
 });
 
 describe('exit codes', () => {
-  it('holds 3 open rather than reusing it', () => {
-    expect(RESERVED_EXIT_CODES[EXIT.PATCH_REJECTED]).toMatch(/writes no changes in this version/);
+  /*
+   * 3 was held open under ADR 0015 and is returned again under ADR 0019, which
+   * put the fix stage back on the investigation path on 2026-08-27. The
+   * assertion moved with it: what must hold now is that RESERVED_EXIT_CODES is
+   * empty -- no code is described as reserved while runs return it -- and that
+   * 3 still means PATCH_REJECTED, because the scripts written against the
+   * original table are the reason it was never renumbered.
+   */
+  it('returns 3 again, and reserves nothing while it does', () => {
+    expect(EXIT.PATCH_REJECTED).toBe(3);
+    expect(RESERVED_EXIT_CODES[EXIT.PATCH_REJECTED]).toBeUndefined();
+    expect(Object.keys(RESERVED_EXIT_CODES)).toHaveLength(0);
+    expect(EXIT_CODE_HELP.join('\n')).toMatch(/3\s+PATCH_REJECTED/);
   });
 
   it('gives triage a speaking code distinct from NO_RUNNABLE_CHECK', () => {

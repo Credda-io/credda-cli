@@ -54,21 +54,33 @@ The developer surface is [api.credda.io](https://api.credda.io) — the
 [API reference](https://api.credda.io/reference) and
 [`openapi.json`](https://api.credda.io/openapi.json).
 
-**Status of the fix path, as of 2026-08-23:** the Fixer, the Verifier and
-pull-request authoring are built and tested and are off the shipped path. The
-gate is a model-backed run: across all seven engine databases in the tree there
-were **468 investigations, 0 patches and 0 verification runs**, and every
-`model_usage` row carried `provider='heuristic'` with zero tokens
-(`docs/strategy/v41-gates.md`). Restoring the path is the plan of record and its
-procedure is written down; there is deliberately **no flag that turns it on**,
-because a flag would put an unevidenced claim one environment variable away from
-a customer. Metrics for stages that have not run report `NOT_ATTEMPTED_IN_V1`
-rather than a measured zero. See ADR 0018, *The product is the fix*.
+**Status of the fix path, as of 2026-08-23 — superseded, kept because it is the
+measurement:** the Fixer, the Verifier and pull-request authoring were built and
+tested and off the shipped path. The gate was a model-backed run: across all
+seven engine databases in the tree there were **468 investigations, 0 patches
+and 0 verification runs**, and every `model_usage` row carried
+`provider='heuristic'` with zero tokens (`docs/strategy/v41-gates.md`). There was
+deliberately **no flag that turns it on**, because a flag would have put an
+unevidenced claim one environment variable away from a customer.
+
+**What changed, 2026-08-27 and 2026-08-28.** A model-backed run happened, which
+was the condition the paragraph above named. ADR 0019 superseded ADR 0015's
+scoping decision and put the Fixer and the Verifier back on the investigation
+path; the following day the engine's forge delivery path was wired to open a
+pull request for a run that reaches a proven verdict. The gate that replaced the
+absent flag is not a flag either: it is `provider.isGenerative` in the
+orchestrator, so the stage is entered when a model-backed provider is configured
+and skipped when one is not. A heuristic patch is worse than none. See ADR 0018,
+*The product is the fix*, and ADR 0019.
 
 What the shipped CLI therefore does today: prepare an environment, reproduce the
 reported failure, capture its failure signature as evidence, diagnose a cause
-where the evidence supports one, and report all of it. It edits no code and
-needs no write access to reach that.
+where the evidence supports one, and — where a model-backed provider is
+configured — write a patch and prove it. Against the deterministic heuristic
+provider it reaches diagnosis and stops there, and reports the stages it did not
+enter as not attempted rather than as a measured zero. That rule is older than
+this change and survives it: nothing may report a stage that did not run as a
+zero.
 
 ## The command surface
 
@@ -82,7 +94,7 @@ credda investigate <repo-path> <description | @file | ->  [options]
 
 | Command | What it does |
 | --- | --- |
-| `investigate` | Reproduce a reported failure and report what was found |
+| `investigate` | Reproduce a reported failure, diagnose it, and fix it where the provider allows |
 | `triage` | Say what Credda could not use in a report, or say nothing |
 | `doctor` | Check that this environment can reproduce a bug |
 | `reap` | Remove sandbox containers left behind by an interrupted run |
@@ -127,7 +139,7 @@ typed and a file name does not go through a shell.
 | 0 | The answer was reached and nothing failed. Abstention is a success: `NO_CHANGE_REQUIRED` and `INCONCLUSIVE` both exit 0. For `triage`, 0 means it correctly had nothing to say. |
 | 1 | Internal error. Credda failed; no verdict. |
 | 2 | Usage error. Nothing was run. |
-| 3 | **Reserved**, `PATCH_REJECTED`. Held open rather than reused; no run of this version returns it. |
+| 3 | `PATCH_REJECTED`: Credda wrote a change and independent verification rejected it, so the change was discarded and the workspace restored. Nothing is on offer; the diagnosis still stands. Held open and unreused while ADR 0015 was in force, and returned again since ADR 0019 (2026-08-27), so the scripts written against the original table still read it correctly. |
 | 4 | Cancelled by the operator. |
 | 5 | `NO_RUNNABLE_CHECK`: nothing runnable could be derived from the report. A fact about the report, not about your code, kept separate from 0 so `credda … && deploy` cannot read it as a pass. |
 | 6 | `COMMENT_READY`, from `triage` only: there is a comment and it is on stdout. |

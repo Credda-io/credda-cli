@@ -5,20 +5,20 @@
  *
  * ## What this CLI claims, and what it does not
  *
- * V1 is reproduce-and-report. A run prepares an environment, reproduces the
- * reported failure, captures its signature as evidence, diagnoses a cause where
- * the evidence supports one, and reports all of it. It writes no code, opens no
- * change proposal, and needs no write access to reach any of that.
+ * A run prepares an environment, reproduces the reported failure, captures its
+ * signature as evidence, diagnoses a cause where the evidence supports one,
+ * writes the patch and proves it with a test that fails before and passes
+ * after. It ends at a diff for a person to review. **It proposes and never
+ * merges**, and nothing here takes write access to a repository to do it.
  *
- * Writing a change and verifying it are built and tested and out of the V1
- * path. `WITHHELD_PATCH_PATH_STATES` in `packages/shared/src/states.ts` is the
- * register: every file the path went into, every state and transition held out
- * of the graph, and the five ordered steps that bring it back. There is
- * deliberately no flag here that turns it on, and there must not be one. A flag
- * would put an unevidenced claim one environment variable away from a customer,
- * and the measured basis for the cut is that across every database in this tree
- * there are 468 investigations, 0 patches and 0 verification runs
- * (`docs/strategy/v41-gates.md`).
+ * **How far a run goes is decided by the provider, not by a flag.** The fix
+ * stage is on the investigation path (ADR 0019) and is entered only when the
+ * configured provider can author code. Under `CREDDA_PROVIDER=auto` with no
+ * key the engine degrades to rule-based reasoning and stops after the
+ * diagnosis, because a rule-based patch is worse than none. `PATCH_PATH_STATES`
+ * in `packages/shared/src/states.ts` carries that gate and the evidence behind
+ * it. There is deliberately no switch here that overrides it: a flag would put
+ * an unevidenced claim one environment variable away from a customer.
  *
  * Two consequences this file carries: the old command names keep working and
  * stop describing an output (see {@link INVESTIGATE}), and exit code 3 is
@@ -51,14 +51,15 @@ import { GLOBAL_FLAGS, type CommandSpec, type FlagSpec } from './args.js';
  * record, readable with `credda report <id> --json`, and the exit code stays a
  * statement about whether the run reached a verdict.
  *
- * ## Code 3 is reserved, not removed
+ * ## Code 3 was held open, and is returned again
  *
  * `PATCH_REJECTED` is the exit code of a run that produced a change and then
- * threw it away. This version produces no changes, so nothing exits 3. The code
- * is kept anyway: it is in scripts and in docs/cli.md, the outcome still exists
- * in the record type and can be read back off an older investigation, and a
- * number that silently starts meaning something else is worse than a number
- * nothing currently returns. See {@link RESERVED_EXIT_CODES}.
+ * threw it away. ADR 0015 stopped anything from producing changes and held the
+ * code open rather than renumbering the table; ADR 0019 put the fix stage back
+ * on the path, so runs return 3 again and it means exactly what the old scripts
+ * were written against. {@link RESERVED_EXIT_CODES} is empty as a result, and
+ * kept, because a test reads it and a code moving between reserved and returned
+ * should move its reason with it.
  */
 export const EXIT = {
   /** Success, including NO_CHANGE_REQUIRED and INCONCLUSIVE. */
@@ -67,7 +68,7 @@ export const EXIT = {
   INTERNAL_ERROR: 1,
   /** The command line or its inputs were wrong. Nothing was run. */
   USAGE_ERROR: 2,
-  /** Reserved. A change was produced and rejected. This version produces none. */
+  /** A change was produced and independent verification rejected it. */
   PATCH_REJECTED: 3,
   /** The run was cancelled (Ctrl-C). */
   CANCELLED: 4,
@@ -98,7 +99,7 @@ export const EXIT = {
    * document on the silent path; a caller that tests for 0 posts only silence,
    * which posts nothing. The failure this product cannot afford is a
    * confidently wrong refusal on a stranger's issue -- the dominant rule is
-   * still wrong 8.7% of the times it fires (codereefai/core#7) -- so the
+   * still wrong 8.7% of the times it fires (Credda-io/core#7) -- so the
    * direction of every mistake here has to be silence.
    *
    * 6 rather than reusing 5: NO_RUNNABLE_CHECK is a statement that nothing was
@@ -114,11 +115,7 @@ export const EXIT = {
  * A test reads this, so a code cannot quietly move between "reserved" and
  * "returned" without the reason moving with it.
  */
-export const RESERVED_EXIT_CODES: Readonly<Record<number, string>> = {
-  [EXIT.PATCH_REJECTED]:
-    'a change was produced and independent verification rejected it. Credda ' +
-    'writes no changes in this version, so no run returns this.',
-};
+export const RESERVED_EXIT_CODES: Readonly<Record<number, string>> = {};
 
 export const EXIT_CODE_HELP: readonly string[] = [
   '  0  Credda reached the answer it was asked for and nothing failed. For a run',
@@ -130,8 +127,9 @@ export const EXIT_CODE_HELP: readonly string[] = [
   '     nothing to say -- see 6.',
   '  1  Internal error. Credda failed; the investigation did not reach a verdict.',
   '  2  Usage error. A bad flag, a missing value, or an input that could not be read.',
-  '  3  Reserved: PATCH_REJECTED. A change was produced and independent verification',
-  '     rejected it. Credda writes no changes in this version, so no run returns 3.',
+  '  3  PATCH_REJECTED. Credda wrote a change and independent verification rejected it,',
+  '     so it was discarded and the workspace restored. No change is on offer. The',
+  '     diagnosis still stands and is worth reading.',
   '  4  Cancelled by the operator (Ctrl-C).',
   '  5  NO_RUNNABLE_CHECK. Nothing runnable could be derived from the report, so',
   '     nothing was executed. This is a fact about the report, not about your code,',
@@ -147,13 +145,12 @@ export const EXIT_CODE_HELP: readonly string[] = [
  *
  * ## Why the name moved twice
  *
- * `fix` named a stage. `resolve` named the whole workflow, back when the
- * workflow ended in a patch and a pull request. This version ends at the
- * report: Credda prepares an environment, reproduces the reported failure,
- * captures its signature, diagnoses a cause where the evidence supports one,
- * and tells you. It writes no code and proposes no change. Two of the three
- * spellings therefore name something the command does not do, and `investigate`
- * names exactly what it does.
+ * `fix` named a stage. `resolve` named the whole workflow. Both were accurate
+ * about the destination and wrong about the guarantee: a run reproduces,
+ * diagnoses, and then patches and verifies only where the evidence and the
+ * provider let it, and a name that promises a fix promises an outcome no run
+ * can commit to in advance. `investigate` names what every run does; how far
+ * it gets is reported rather than asserted by the verb.
  *
  * ## Why both old names still work
  *
@@ -170,7 +167,7 @@ export const EXIT_CODE_HELP: readonly string[] = [
  */
 const INVESTIGATE: CommandSpec = {
   name: 'investigate',
-  summary: 'Reproduce a reported failure and report what was found',
+  summary: 'Reproduce a reported failure, diagnose it, and fix it where the provider allows',
   args: '<repo-path> <description | @file | ->  [options]',
   flags: {
     sandbox: {
@@ -308,7 +305,7 @@ const REPORT: CommandSpec = {
  * ## Why it takes a file and never a string
  *
  * The body is text a stranger typed. The launcher's `run.mjs`
- * (codereefai/action) documents at length why
+ * (Credda-io/action) documents at length why
  * it may never reach a shell, and the same reasoning applies one layer up: an
  * argument goes through a shell, a file name does not. {@link INVESTIGATE}
  * accepts `@file` alongside inline text because a person at a terminal has a
