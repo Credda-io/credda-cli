@@ -1,0 +1,21 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/Credda-io/credda-cli/security/advisories/new
+    about: Do not open a public issue for something exploitable. See SECURITY.md.
+  - name: '`npm i -g credda` fails with a 404'
+    url: https://github.com/Credda-io/credda-cli/blob/main/README.md
+    about: >
+      Known and deliberate. The `credda` package is not on the public registry
+      yet, and this package installs no command. Please do not file it.
+  - name: You installed @credda/cli and got the reliability-score CLI
+    url: https://github.com/Credda-io/credda-cli/blob/main/CHANGELOG.md
+    about: >
+      npm still serves 0.1.6, which is a different product and owns the `credda`
+      binary. Pin 0.1.6 if you depend on it; there is no upgrade path.
+  - name: What Credda is
+    url: https://credda.io
+    about: >
+      You label a bug report or a vulnerability, Credda reproduces it, diagnoses
+      it, and proves a patch with a test that fails before and passes after.
+      It proposes; it never merges.
