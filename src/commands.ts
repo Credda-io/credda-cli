@@ -235,10 +235,15 @@ const INVESTIGATE: CommandSpec = {
  * `report`, with `resolution` as a permanent alias for it.
  *
  * ADR 0012 named this record a *resolution* when the pipeline ended in a patch
- * and a pull request. The record itself has not changed shape, but what a run
- * can fill in has: Change and Verification are stages this version does not
- * perform, so a record produced today carries neither, and calling that a
- * resolution names something the run did not do. `report` names what it is.
+ * and a pull request. ADR 0015 then took the Fix and Verify stages off the V1
+ * path, and for that stretch a record produced today could carry neither.
+ * ADR 0019 (2026-08-27) put both stages back: a run with a model-backed
+ * provider writes a patch and verifies it, so Change and Verification are
+ * filled in again from that run's own records.
+ *
+ * `report` is still the better name. It is what the command does -- show what
+ * the run established -- whether or not the run reached the fix stage, and it
+ * does not promise a resolution to a run that stopped at the diagnosis.
  *
  * `resolution` keeps working, for the same reason `fix` does.
  */
@@ -263,11 +268,18 @@ const REPORT: CommandSpec = {
   },
   details: [
     'The record (ADR 0012): Bug, Evidence, Reproduction, Root Cause and',
-    'Confidence, which is everything this version of Credda performs.',
+    'Confidence, and, when the run reached the fix stage, Change and',
+    'Verification.',
     '',
-    'Two further sections, Change and Verification, are printed only for an',
-    'older record that carries them. Credda writes no changes now, so a run',
-    'started today reaches neither, and both say so rather than going quiet.',
+    'What the run behind this record does: Credda is handed a LABELLED bug',
+    'report. It reproduces the failure, diagnoses the cause, writes a patch, and',
+    'proves the patch with a test that fails before it and passes after. It',
+    'NEVER merges, and it does not scan a codebase looking for unknown bugs.',
+    '',
+    'Change and Verification are printed from the run\'s own records. Reaching',
+    'them depends on the provider (ADR 0019): a run with no model-backed',
+    'provider stops at the diagnosis and records neither, and both sections say',
+    'that rather than going quiet.',
     '',
     'Every section is derived from something that was executed and recorded, or',
     'it is absent. A section with nothing behind it is not filled in -- the hole',
@@ -283,9 +295,9 @@ const REPORT: CommandSpec = {
     '',
     '--markdown emits the same document the forge delivery posts, which until now',
     'was reachable only from a webhook. It leads with what the investigation did',
-    'NOT establish, and it says in its own words that no code was written and',
-    'nothing above has been shown to be fixed. That section is the point; do not',
-    'strip it before sharing the rest.',
+    'NOT establish, and its "What was not done" section states, from the record,',
+    'whether code was written and what has not been shown. That section is the',
+    'point; do not strip it before sharing the rest.',
     '',
     '--patch writes the unified diff this run recorded, on stdout, with nothing',
     'around it. It exists so a delivery surface can commit what the run actually',
