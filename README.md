@@ -45,10 +45,11 @@ library, not a tool.
 
 ## What Credda is
 
-Credda finds the bugs and security vulnerabilities in a company's production and
-QA environments, reproduces the failure, diagnoses the cause, writes the patch,
-proves it with a test that fails before and passes after, and opens a pull
-request. It proposes and never merges.
+A customer labels a bug report or a security vulnerability. Credda reproduces
+the failure, diagnoses the cause, writes the patch, proves it with a test that
+fails before and passes after, and hands back a diff. Opening a pull request is
+opt-in, off by default, and has not yet run against a real repository. It
+proposes and never merges.
 
 The developer surface is [api.credda.io](https://api.credda.io) — the
 [API reference](https://api.credda.io/reference) and
@@ -67,10 +68,11 @@ unevidenced claim one environment variable away from a customer.
 was the condition the paragraph above named. ADR 0019 superseded ADR 0015's
 scoping decision and put the Fixer and the Verifier back on the investigation
 path; the following day the engine's forge delivery path was wired to open a
-pull request for a run that reaches a proven verdict. The gate that replaced the
-absent flag is not a flag either: it is `provider.isGenerative` in the
-orchestrator, so the stage is entered when a model-backed provider is configured
-and skipped when one is not. A heuristic patch is worse than none. See ADR 0018,
+pull request for a run that reaches a proven verdict -- opt-in, off unless a
+caller turns it on, and not yet exercised against a real repository. The gate
+that replaced the absent flag is not a flag either: it is
+`provider.isGenerative` in the orchestrator, so the stage is entered when a
+model-backed provider is configured and skipped when one is not. A heuristic patch is worse than none. See ADR 0018,
 *The product is the fix*, and ADR 0019.
 
 What the shipped CLI therefore does today: prepare an environment, reproduce the
