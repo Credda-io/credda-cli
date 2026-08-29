@@ -31,6 +31,8 @@ describe('the mirrored command table', () => {
         'resolve',
         'status',
         'triage',
+        'validation',
+        'validations',
       ].sort(),
     );
   });

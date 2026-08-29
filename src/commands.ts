@@ -372,6 +372,182 @@ const TRIAGE: CommandSpec = {
   ],
 };
 
+/**
+ * The vocabularies the validation flags accept, written out here rather than
+ * imported from `@credda/shared`.
+ *
+ * This file is mirrored byte-for-byte into the public `@credda/cli` package,
+ * which depends on nothing and builds outside this monorepo. An import of
+ * `@credda/shared` here would compile in `core` and break the mirror, so the
+ * only import this file may ever take is `./args.js`, which is mirrored
+ * alongside it.
+ *
+ * The copies are held to their originals by a test
+ * (`apps/cli/test/commands.test.ts`) that compares each list to the shared
+ * constant it duplicates. A vocabulary that drifts fails there rather than
+ * turning into a flag the API rejects.
+ */
+const VALIDATION_STATE_CHOICES = [
+  'CREATED',
+  'ANALYZING_CHANGE',
+  'UNDERSTANDING_INTENT',
+  'PLANNING',
+  'PREPARING_ENVIRONMENT',
+  'RUNNING',
+  'CONFIRMING_FINDINGS',
+  'INVESTIGATING_FINDING',
+  'COMPLETED',
+  'CANCELLED',
+  'FAILED',
+] as const;
+
+const VALIDATION_OUTCOME_CHOICES = [
+  'VERIFIED',
+  'FAILED',
+  'BLOCKED',
+  'INCONCLUSIVE',
+  'NO_CHANGE_REQUIRED',
+  'CANCELLED',
+  'ERRORED',
+] as const;
+
+const FINDING_SEVERITY_CHOICES = ['HIGH', 'MEDIUM', 'LOW'] as const;
+
+const FINDING_STATUS_CHOICES = ['OPEN', 'DISMISSED', 'ENVIRONMENT_RELATED', 'RESOLVED'] as const;
+
+/**
+ * `credda validations` and `credda validation`: the change-scoped run, read
+ * from a terminal.
+ *
+ * ## Why the object is separate from an investigation, and the commands with it
+ *
+ * An investigation asks whether one reported defect is fixed and answers with
+ * one Outcome. A validation asks whether a change works, which does not
+ * decompose into one question -- it decomposes into n checks that pass, fail,
+ * or turn out to be impossible to run, independently of one another (ADR 0010,
+ * and `packages/shared/src/validation.ts`). `status` and `inspect` cannot be
+ * widened to cover both without one of the two objects reading as the other,
+ * so the pair below mirrors them rather than absorbing them: `validations`
+ * lists, `validation` reads one in full.
+ *
+ * ## What these two commands may never come to mean
+ *
+ * They READ. Nothing here starts a validation, and nothing here writes,
+ * merges, closes or comments. They are the terminal's view of records the
+ * engine already wrote, and a validation is scoped to a change somebody
+ * proposed -- Credda does not go looking through a repository for defects
+ * nobody reported.
+ *
+ * The filters are exactly the ones `apps/api/src/routes/validations.ts`
+ * accepts, under the same names and the same vocabularies, because a filter
+ * that means something different on two surfaces is worse than a missing one.
+ */
+const VALIDATIONS: CommandSpec = {
+  name: 'validations',
+  summary: 'List change-scoped validation runs',
+  args: '[--repository <path-or-id>] [--state <state>] [--outcome <outcome>] [--limit <n>] [--offset <n>]',
+  flags: {
+    repository: {
+      kind: 'string',
+      valueName: '<path-or-id>',
+      description:
+        'Only validations of one repository. A path to a checkout or the\n' +
+        '                      repository id; an unknown one is refused rather than answered\n' +
+        '                      with an empty list',
+    },
+    state: {
+      kind: 'string',
+      choices: VALIDATION_STATE_CHOICES,
+      valueName: '<state>',
+      description: 'Only validations in this state',
+    },
+    outcome: {
+      kind: 'string',
+      choices: VALIDATION_OUTCOME_CHOICES,
+      valueName: '<outcome>',
+      description: 'Only validations that concluded this',
+    },
+    limit: { kind: 'number', valueName: '<n>', description: 'How many to list', defaultNote: '50' },
+    offset: { kind: 'number', valueName: '<n>', description: 'Skip this many first', defaultNote: '0' },
+  },
+  details: [
+    'A validation is the change-scoped run: it takes a change somebody proposed',
+    'and asks, check by check, whether it works. It is a different object from an',
+    'investigation, which takes one reported defect and asks whether it is fixed.',
+    '  credda status         lists investigations instead',
+    '',
+    'STATE is where the run got to. OUTCOME is what it concluded, and only the',
+    'outcome is a verdict: a run that finished and found two failures is as',
+    'COMPLETED as one that found none.',
+    '',
+    'VERIFIED requires at least one check to have actually passed. A run with no',
+    'passing check is INCONCLUSIVE, never a clean bill of health, and BLOCKED',
+    'means the environment would not come up so nothing was asked of the change',
+    'at all.',
+    '',
+    'Read one of them in full with:  credda validation <id>',
+  ],
+};
+
+const VALIDATION: CommandSpec = {
+  name: 'validation',
+  summary: 'Show one validation: its checks, and the findings they raised',
+  args: '<validation-id-or-prefix> [--severity <s>] [--status <s>] [--limit <n>] [--offset <n>]',
+  flags: {
+    severity: {
+      kind: 'string',
+      choices: FINDING_SEVERITY_CHOICES,
+      valueName: '<severity>',
+      description: 'Only findings of this severity',
+    },
+    status: {
+      kind: 'string',
+      choices: FINDING_STATUS_CHOICES,
+      valueName: '<status>',
+      description: 'Only findings with this status',
+    },
+    limit: {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'How many findings to show',
+      defaultNote: '50',
+    },
+    offset: {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'Skip this many findings first',
+      defaultNote: '0',
+    },
+  },
+  details: [
+    'Any unambiguous prefix of a validation id is accepted.',
+    '  credda validations    lists recent validations',
+    '',
+    'The plan is printed whole, in the order it was executed, and every check is',
+    'shown with the status it reached. A check that was never run is printed as',
+    'PENDING rather than omitted, because a silently missing check reads as a',
+    'passing one.',
+    '',
+    'Check statuses that are not failures, and are not successes either:',
+    '  PRE_EXISTING_FAILURE  it fails on this change and fails identically on the',
+    '                        base commit, so this change did not cause it. Shown',
+    '                        as context and never raised as a finding.',
+    '  BLOCKED               it could not be executed at all, so nothing was',
+    '                        observed about the change in either direction.',
+    '',
+    'A finding is narrower than a failure: a check reaches FAILED only after the',
+    'base commit was re-run and passed there, so every finding below carries the',
+    'fact that this change caused it.',
+    '',
+    'This command reads records. It starts nothing, writes nothing, and Credda',
+    'never merges a change.',
+    '',
+    'The findings filters narrow the findings only; the plan above them is always',
+    'printed whole, because a plan cut to a filter is a plan a reader cannot',
+    'check the outcome against.',
+  ],
+};
+
 export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   investigate: INVESTIGATE,
 
@@ -462,6 +638,10 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   },
 
   report: REPORT,
+
+  validations: VALIDATIONS,
+
+  validation: VALIDATION,
 
   inspect: {
     name: 'inspect',
