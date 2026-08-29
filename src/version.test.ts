@@ -56,9 +56,28 @@ describe('the README', () => {
     expect(readme).toMatch(/2026-08-2\d/);
   });
 
-  it('points at the achromatic lockups', () => {
-    expect(readme).toContain('credda-lockup-black.png');
-    expect(readme).toContain('credda-lockup-white.png');
+  /*
+   * This guard used to assert the achromatic lockups, and the identity has
+   * moved: Seal.tsx made `spectrum` the default tone in web's 870d264 and
+   * recorded the older large-marks-only rule as superseded. So the claim worth
+   * guarding is inverted. It is not that the header points at some file; it is
+   * that the header does not go back to a mark the brand has retired, and that
+   * the one file it does point at is present in this repository, because the
+   * README is served from an absolute raw.githubusercontent.com URL and a path
+   * that resolves in the checkout can still 404 on the branch.
+   */
+  it('paints the header in the spectrum, not in the retired achromatic mark', () => {
+    expect(readme).toContain('credda-mark-spectrum.png');
+    expect(readme).not.toContain('credda-lockup-black.png');
+    expect(readme).not.toContain('credda-lockup-white.png');
     expect(readme).not.toContain('creddaseallockup');
+  });
+
+  it('references only brand files that exist in this repository', () => {
+    const referenced = [...readme.matchAll(/assets\/([\w-]+\.png)/g)].map((m) => m[1]);
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const file of new Set(referenced)) {
+      expect(() => readFileSync(join(root, 'assets', file))).not.toThrow();
+    }
   });
 });
