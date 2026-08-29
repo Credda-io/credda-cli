@@ -47,8 +47,12 @@ library, not a tool.
 
 A customer labels a bug report or a security vulnerability. Credda reproduces
 the failure, diagnoses the cause, writes the patch, proves it with a test that
-fails before and passes after, and hands back a diff. Opening a pull request is
-opt-in, off by default, and has not yet run against a real repository. It
+fails before and passes after, and hands back a diff. Whether that diff becomes a
+pull request depends on which mechanism delivered it, and the two answer
+differently: the **GitHub App** path opens one with no flag and no switch, for a
+run that reaches `READY_FOR_REVIEW` with a proven verdict; the **GitHub Action**
+opens none unless you set its `open-pull-request` input, which defaults to
+`false`. How often a run reaches a proven fix at all has not been measured. It
 proposes and never merges.
 
 The developer surface is [api.credda.io](https://api.credda.io) — the
@@ -68,9 +72,10 @@ unevidenced claim one environment variable away from a customer.
 was the condition the paragraph above named. ADR 0019 superseded ADR 0015's
 scoping decision and put the Fixer and the Verifier back on the investigation
 path; the following day the engine's forge delivery path was wired to open a
-pull request for a run that reaches a proven verdict -- opt-in, off unless a
-caller turns it on, and not yet exercised against a real repository. The gate
-that replaced the absent flag is not a flag either: it is
+pull request for a run that reaches a proven verdict. That path takes no flag
+and no opt-in switch; the `open-pull-request` input that defaults to `false` is
+the **GitHub Action**'s, a separate mechanism that runs on the caller's own
+runner. The gate that replaced the absent flag is not a flag either: it is
 `provider.isGenerative` in the orchestrator, so the stage is entered when a
 model-backed provider is configured and skipped when one is not. A heuristic patch is worse than none. See ADR 0018,
 *The product is the fix*, and ADR 0019.
@@ -123,9 +128,17 @@ actually produces, so an old name is never read as a promise about the output.
 | `--max-turns` | `<n>` model calls across all agent roles | `120` |
 | `--out` | `<file>` also write this run's machine-readable result as JSON | — |
 
-Other commands: `triage --repo <path>`; `report`/`resolution` `--markdown`;
-`doctor --deep`; `reap --dry-run --max-age-hours <n>`; `init --global --force`;
-`status --limit <n>`; `events --since <n>` and `--follow` (`-f`).
+Other commands: `triage --repo <path>`; `report`/`resolution` `--markdown` and
+`--patch`; `doctor --deep`; `reap --dry-run --max-age-hours <n>`;
+`init --global --force`; `status --limit <n>`; `events --since <n>` and
+`--follow` (`-f`).
+
+`report --patch` writes the unified diff the run recorded on stdout and nothing
+else, and exits non-zero when the run recorded no patch, so a script cannot read
+an empty document as an empty change. It only reads a finished run: it applies
+nothing, delivers nothing, and whether that diff may be proposed to anyone is a
+separate question answered by the delivery block that `credda investigate --out`
+writes.
 
 Global: `--help` (`-h`), `--version`, `--json`, `--quiet`, `--verbose`,
 `--no-color`.

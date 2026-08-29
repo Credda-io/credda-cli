@@ -209,8 +209,9 @@ const INVESTIGATE: CommandSpec = {
     'What a run does, and where it stops:',
     '  prepare an environment, reproduce the reported failure, capture its',
     '  failure signature, and diagnose a cause where the evidence supports one.',
-    '  It then reports all of it. Credda does not edit your code, does not',
-    '  open a change proposal, and needs no write access to reach any of this.',
+    '  With a model-backed provider it then attempts a fix and verifies it, and',
+    '  it reports all of it. Every stage runs in a disposable copy, so this',
+    '  command changes nothing in your working tree.',
     '',
     'Description sources:',
     '  "text"     a short description given inline',
@@ -244,13 +245,20 @@ const INVESTIGATE: CommandSpec = {
 const REPORT: CommandSpec = {
   name: 'report',
   summary: 'Show what an investigation established, and what it did not',
-  args: '<investigation-id-or-prefix> [--json] [--markdown]',
+  args: '<investigation-id-or-prefix> [--json] [--markdown] [--patch]',
   flags: {
     markdown: {
       kind: 'boolean',
       description:
         'Emit the report as Markdown: the same document Credda posts to a\n' +
         '                      pull request. Pipe it, paste it, or commit it',
+    },
+    patch: {
+      kind: 'boolean',
+      description:
+        'Emit the recorded unified diff and nothing else. Exits non-zero\n' +
+        '                      when the run recorded no patch, so a script cannot\n' +
+        '                      mistake an empty document for an empty change',
     },
   },
   details: [
@@ -278,6 +286,12 @@ const REPORT: CommandSpec = {
     'NOT establish, and it says in its own words that no code was written and',
     'nothing above has been shown to be fixed. That section is the point; do not',
     'strip it before sharing the rest.',
+    '',
+    '--patch writes the unified diff this run recorded, on stdout, with nothing',
+    'around it. It exists so a delivery surface can commit what the run actually',
+    'produced instead of re-deriving a change from prose; whether that diff may',
+    'be PROPOSED to anyone is a separate question, answered by the delivery',
+    'block in the result file that `credda investigate --out` writes.',
   ],
 };
 
@@ -568,8 +582,8 @@ export function rootUsage(): string {
     'Usage: credda <command> [options]',
     '',
     'Workflow: signal -> investigate -> reproduce -> diagnose -> report.',
-    'Credda reports what it found and stops there. It does not edit your code,',
-    'it does not open a change proposal, and it needs no write access to do this.',
+    'Credda reports what it found and stops there. It changes nothing in your',
+    'working tree: any fix it attempts is made in a disposable copy.',
     '',
     'Commands:',
   ];

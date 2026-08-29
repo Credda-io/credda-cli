@@ -43,11 +43,47 @@ describe('the mirrored command table', () => {
     expect(canonicalCommand('nonesuch')).toBe('nonesuch');
   });
 
-  it("does not offer a flag that turns on patch writing, because the engine's table has none", () => {
+  /*
+   * This test used to forbid the name `patch` anywhere in the table, on the
+   * stated grounds that the engine's table had no such flag. That fact expired:
+   * `credda report --patch` landed with the delivery work, and the mirror
+   * gained it when this file's sibling was re-copied on 2026-08-29. Forbidding
+   * a name the engine now ships would have made the mirror lie to keep a test
+   * green, which is the one thing a mirror may never do.
+   *
+   * What replaces it guards the invariant the old test was reaching for.
+   * Credda proposes and never merges, and no flag on this table may be the
+   * thing that applies a change, delivers one, or overrides the provider gate
+   * that decides whether a patch is authored at all. `report --patch` is not
+   * that: `report` only reads a finished run, and the flag selects which
+   * recorded artefact is printed on stdout.
+   */
+  it('offers no flag that applies, delivers or merges a change', () => {
     const flags = Object.values(COMMANDS).flatMap((command) => Object.keys(command.flags));
-    for (const forbidden of ['fix', 'patch', 'apply', 'write', 'pr', 'pull-request']) {
+    for (const forbidden of ['fix', 'apply', 'write', 'merge', 'pr', 'pull-request', 'push', 'commit']) {
       expect(flags).not.toContain(forbidden);
     }
+  });
+
+  it('carries --patch only on report, which reads a finished run and writes nothing', () => {
+    // `resolution` is a permanent alias for `report` and shares its spec
+    // object, so collapse names to canonical ones before asserting.
+    const carrying = [
+      ...new Set(
+        Object.entries(COMMANDS)
+          .filter(([, command]) => 'patch' in command.flags)
+          .map(([name]) => canonicalCommand(name)),
+      ),
+    ];
+    expect(carrying).toEqual(['report']);
+    expect(COMMANDS.report.flags.patch?.kind).toBe('boolean');
+  });
+
+  it('gives investigate no flag that overrides the provider gate on the fix stage', () => {
+    // How far a run goes is decided by the configured provider, never by the
+    // command line. See this file's header in the engine's copy.
+    const investigate = Object.keys(COMMANDS.investigate.flags);
+    expect(investigate).toEqual(['sandbox', 'provider', 'budget-minutes', 'max-turns', 'out']);
   });
 });
 
