@@ -19,6 +19,7 @@ describe('the mirrored command table', () => {
   it('offers the commands the engine CLI offers, and no others', () => {
     expect(Object.keys(COMMANDS).sort()).toEqual(
       [
+        'cancel',
         'doctor',
         'events',
         'fix',
@@ -160,6 +161,38 @@ describe('exit codes', () => {
     expect(EXIT.COMMENT_READY).toBe(6);
     expect(EXIT.COMMENT_READY).not.toBe(EXIT.NO_RUNNABLE_CHECK);
     expect(EXIT.SUCCESS).toBe(0);
+  });
+
+  /*
+   * The distinction `credda cancel` exists to preserve, asserted on the only
+   * part of it a caller outside the engine repository can read.
+   *
+   * A cancel has two good answers: the run is over, or the run has merely been
+   * asked to end and is at this moment still holding a sandbox and still
+   * spending a model budget. If both were 0, then `credda cancel $id && deploy`
+   * would deploy over a live run, which is the one false claim the whole
+   * cancel path is written to avoid. 7 is therefore not decoration and may not
+   * be folded into 0 for tidiness.
+   *
+   * Nor into 4. 4 is `credda investigate` saying a run it was executing ended.
+   * 7 is a different process saying it asked one to, without knowing whether it
+   * did. Collapsing them would erase exactly the difference.
+   */
+  it('separates asking a run to stop from a run having stopped', () => {
+    expect(EXIT.CANCELLATION_REQUESTED).toBe(7);
+    expect(EXIT.CANCELLATION_REQUESTED).not.toBe(EXIT.SUCCESS);
+    expect(EXIT.CANCELLATION_REQUESTED).not.toBe(EXIT.CANCELLED);
+    expect(EXIT_CODE_HELP.join('\n')).toMatch(/7\s+CANCELLATION_REQUESTED/);
+    // The published help has to carry the caveat, not just the number.
+    expect(EXIT_CODE_HELP.join('\n')).toContain('It has NOT stopped');
+  });
+
+  it('does not let the cancel help read as a promise that a run has stopped', () => {
+    const help = COMMANDS['cancel']?.details?.join(' ') ?? '';
+    expect(help).toContain('two good answers and they are not the same answer');
+    expect(help).toContain('It has not stopped');
+    expect(help).toContain('writes its own terminal state');
+    expect(help).toContain('reported as unreachable rather than marked');
   });
 });
 

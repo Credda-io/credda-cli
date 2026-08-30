@@ -107,6 +107,31 @@ export const EXIT = {
    * design, so the two would stop meaning different things.
    */
   COMMENT_READY: 6,
+  /**
+   * `credda cancel` reached a run that is still executing and asked it to stop.
+   * The request is delivered; the run has not stopped yet.
+   *
+   * ## Why this is not 0, and not 4
+   *
+   * `apps/api/src/routes/investigations.ts` answers the same question with two
+   * different HTTP statuses -- 200 CANCELLED when the run is genuinely over, 202
+   * CANCELLATION_REQUESTED when a process is still inside it holding a sandbox
+   * and a model budget. A shell has no status line to read. It has this number,
+   * and if both answers were 0 then `credda cancel $id && echo stopped` would
+   * print "stopped" over a container that is still running and still spending.
+   * That is the one false claim this whole route was written to avoid, so the
+   * two answers get two codes.
+   *
+   * 4 is the run's own code, returned by `credda investigate` when the run it
+   * was executing was cancelled. It is a statement that a run ended. This is a
+   * statement that one was asked to, made by a different process that cannot
+   * see whether it did. Reusing 4 would collapse exactly the distinction.
+   *
+   * Every way of misreading 7 fails towards waiting rather than towards
+   * assuming: `set -e` stops, a test for 0 does not proceed. `credda events
+   * <id> --follow` is how a caller learns the run actually ended.
+   */
+  CANCELLATION_REQUESTED: 7,
 } as const;
 
 /**
@@ -138,6 +163,11 @@ export const EXIT_CODE_HELP: readonly string[] = [
   '     on stdout. Nothing failed. Triage exits 0 when it correctly has nothing to',
   '     say, which is about half of real issues, so 0 there is silence and 6 is the',
   '     one that means speak.',
+  '  7  CANCELLATION_REQUESTED, from `credda cancel` only: a run is still executing',
+  '     and has been asked to stop. It has NOT stopped. The process tears its sandbox',
+  '     down and writes its own terminal state when it reaches its next checkpoint;',
+  '     follow it with `credda events <id> --follow`. 0 from `credda cancel` means',
+  '     nothing is running, which is a different and stronger claim.',
 ];
 
 /**
@@ -560,6 +590,75 @@ const VALIDATION: CommandSpec = {
   ],
 };
 
+/**
+ * Stopping a run that is already going.
+ *
+ * ## Why this command exists at all
+ *
+ * Ctrl-C stops a run from the terminal that started it. That covers the case
+ * where the operator is still sitting there, and it is the only case Credda
+ * covered: a run started in a terminal that has since been closed, backgrounded,
+ * or left on another tab could not be stopped by anything short of `kill`, and
+ * `kill` leaves the sandbox container running -- which is why `credda reap`
+ * exists.
+ *
+ * `apps/api` has the same shape of problem from the other side and refuses to
+ * paper over it: `POST /api/investigations/:id/cancel` answers a CLI-started run
+ * with 409 NOT_CANCELLABLE, because the job queue never saw that run and the API
+ * cannot reach the process executing it. This command is the reach that answer
+ * says is missing, for the one machine where it is possible: `credda
+ * investigate` records its pid beside the store, and this reads it and sends the
+ * interrupt the running process already handles.
+ *
+ * ## What it may never say
+ *
+ * A cancel that reports success without stopping the run is worse than no
+ * cancel at all -- it tells an operator something false about their own machine
+ * and their own bill. So the two answers stay apart everywhere they are
+ * expressed: in the text, in the exit code (0 stopped, 7 asked), and in
+ * `CancelOutcome`, where `stopped: true` exists only on the outcomes for which
+ * it is true and a renderer that prints "Cancelled." on a request does not
+ * compile.
+ */
+const CANCEL: CommandSpec = {
+  name: 'cancel',
+  summary: 'Stop a running investigation, or say why it cannot be stopped',
+  args: '<investigation-id-or-prefix> [--reason <text>]',
+  flags: {
+    reason: {
+      kind: 'string',
+      valueName: '<text>',
+      description:
+        'Recorded on the investigation. Not required: a cancel with nothing\n' +
+        '                      said is still a cancel',
+    },
+  },
+  details: [
+    'Any unambiguous prefix of an investigation id is accepted.',
+    '',
+    'There are two good answers and they are not the same answer:',
+    '',
+    '  stopped     nothing is running. The run had not started, or its process is',
+    '              already gone. The record is CANCELLED. Exit code 0.',
+    '  asked       a process on this machine is inside the run, holding a sandbox',
+    '              and possibly a model call. It was signalled. It has not stopped:',
+    '              it stops at its next checkpoint, tears the sandbox down, and',
+    '              writes its own terminal state. This command does not write that',
+    '              state and cannot say when it will be written. Exit code 7.',
+    '',
+    'Follow the second one to its end with:  credda events <id> --follow',
+    '',
+    'A run that already finished cannot be stopped and cannot be undone, and a run',
+    'this machine cannot reach is reported as unreachable rather than marked',
+    'cancelled: marking it would be a state the still-running engine overwrites',
+    'minutes later, having spent the whole budget you thought you had stopped.',
+    'Both exit 2.',
+    '',
+    'Cancelling a run that was killed rather than interrupted also leaves its',
+    'sandbox container behind. Clean those up with:  credda reap',
+  ],
+};
+
 export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   investigate: INVESTIGATE,
 
@@ -639,6 +738,8 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
       force: { kind: 'boolean', description: 'Overwrite an existing config file' },
     },
   },
+
+  cancel: CANCEL,
 
   status: {
     name: 'status',

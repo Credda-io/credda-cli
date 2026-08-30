@@ -108,6 +108,9 @@ credda investigate <repo-path> <description | @file | ->  [options]
 | `report` | Show what an investigation established, and what it did not |
 | `inspect` | Show everything one run recorded, in full |
 | `events` | Show the event timeline for an investigation |
+| `cancel` | Stop a running investigation, or say why it cannot be stopped |
+| `validations` | List change-scoped validation runs |
+| `validation` | Show one validation: its checks, and the findings they raised |
 
 Aliases, kept permanently because docs, scripts and the external benchmark
 harness use them: **`fix`** and **`resolve`** are `investigate`; **`resolution`**
@@ -129,7 +132,9 @@ actually produces, so an old name is never read as a promise about the output.
 Other commands: `triage --repo <path>`; `report`/`resolution` `--markdown` and
 `--patch`; `doctor --deep`; `reap --dry-run --max-age-hours <n>`;
 `init --global --force`; `status --limit <n>`; `events --since <n>` and
-`--follow` (`-f`).
+`--follow` (`-f`); `cancel --reason <text>`; `validations --repository <path-or-id>
+--state <state> --outcome <outcome> --limit <n> --offset <n>`; `validation
+--severity <s> --status <s> --limit <n> --offset <n>`.
 
 `report --patch` writes the unified diff the run recorded on stdout and nothing
 else, and exits non-zero when the run recorded no patch, so a script cannot read
@@ -156,6 +161,16 @@ typed and a file name does not go through a shell.
 | 4 | Cancelled by the operator. |
 | 5 | `NO_RUNNABLE_CHECK`: nothing runnable could be derived from the report. A fact about the report, not about your code, kept separate from 0 so `credda … && deploy` cannot read it as a pass. |
 | 6 | `COMMENT_READY`, from `triage` only: there is a comment and it is on stdout. |
+| 7 | `CANCELLATION_REQUESTED`, from `cancel` only: a run is still executing and has been asked to stop. **It has not stopped.** It tears its sandbox down and writes its own terminal state at its next checkpoint; follow it with `credda events <id> --follow`. |
+
+`credda cancel` exits 0 only when nothing is running, and 7 when a run was
+merely asked to stop. They are two codes because they are two claims: 0 says the
+machine is quiet, so `credda cancel $id && deploy` is safe, and 7 does not
+satisfy it. 7 is also not 4 — 4 is a run reporting that it ended, 7 is a
+different process reporting that it asked one to, without knowing whether it
+did. A run this machine cannot reach exits 2 and **nothing is written to it**,
+because marking it cancelled would be a state the still-running engine
+overwrites minutes later, having spent the whole budget you thought you stopped.
 
 Triage's silence is exit 0 and its comment is exit 6, that way round on purpose:
 about half of real inbound issues produce nothing worth saying, and every way of
