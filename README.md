@@ -19,7 +19,7 @@ credda --help
 Node 24 or newer for `credda`. This mirror package needs Node 18 and is a
 library, not a tool.
 
-> **Not installable yet — checked 2026-08-28.** The `credda` package is not on
+> **Not installable yet — re-checked 2026-08-30.** The `credda` package is not on
 > the public npm registry (`https://registry.npmjs.org/credda` returns 404), so
 > the command above fails today. The latest `@credda/cli` on npm is still
 > **0.1.6**, the retired 0.x described below; the `1.0.0` in this repository's
@@ -101,6 +101,7 @@ credda investigate <repo-path> <description | @file | ->  [options]
 | --- | --- |
 | `investigate` | Reproduce a reported failure, diagnose it, and fix it where the provider allows |
 | `triage` | Say what Credda could not use in a report, or say nothing |
+| `discover` | Read a checkout and write the bug reports nobody filed. Starts nothing |
 | `doctor` | Check that this environment can reproduce a bug |
 | `reap` | Remove sandbox containers left behind by an interrupted run |
 | `init` | Write a `credda.config.json` with documented defaults |
@@ -128,8 +129,10 @@ actually produces, so an old name is never read as a promise about the output.
 | `--budget-minutes` | `<n>` wall-clock budget | `20` |
 | `--max-turns` | `<n>` model calls across all agent roles | `120` |
 | `--out` | `<file>` also write this run's machine-readable result as JSON | — |
+| `--ref` | `<ref>` record where this report came from; stored on the run | — |
 
-Other commands: `triage --repo <path>`; `report`/`resolution` `--markdown` and
+Other commands: `triage --repo <path>`; `discover --out <dir>` and
+`--max-files <n>`; `report`/`resolution` `--markdown` and
 `--patch`; `doctor --deep`; `reap --dry-run --max-age-hours <n>`;
 `init --global --force`; `status --repository <path-or-id> --state <state>
 --outcome <outcome> --limit <n> --offset <n>`; `events --since <n>` and
@@ -143,6 +146,17 @@ an empty document as an empty change. It only reads a finished run: it applies
 nothing, delivers nothing, and whether that diff may be proposed to anyone is a
 separate question answered by the delivery block that `credda investigate --out`
 writes.
+
+`discover` is the narrowest verb on this table and the one most likely to be
+read as more than it is. It walks a checkout an operator names, reads its
+JavaScript and TypeScript source, and writes ordinary bug reports about the
+shapes it saw. It opens no store, creates no investigation and starts no run.
+**It has confirmed nothing**: measured against 160 cases from 50 real
+repositories, each at a commit where a defect is present and again at the
+maintainer's fix, the rules emitted 103 candidates, none of them fell silent at
+the fix, and on no case did a rule name the defect the case pins. A candidate is
+a report worth a reproduction, never a defect Credda found — and zero candidates
+is not a clean bill of health.
 
 Global: `--help` (`-h`), `--version`, `--json`, `--quiet`, `--verbose`,
 `--no-color`.
@@ -209,6 +223,18 @@ So this package answers, offline, what `credda` accepts:
 ```ts
 import { COMMANDS, EXIT, rootUsage, parseArgs } from '@credda/cli';
 ```
+
+[`examples/surface.mjs`](examples/surface.mjs) is that, worked through end to
+end — reading the verbs, resolving an alias, parsing a command line, watching a
+bad flag value be refused, and checking the exit-code contract a calling script
+branches on. Run it:
+
+```sh
+npm install && npm run build && npm run example
+```
+
+It asserts with `node:assert/strict` and CI runs it on every push, so it exits
+non-zero the moment any of that stops being true.
 
 It cannot run an investigation, and it does not pretend to. Canonical
 development happens in the engine repository; this repo carries the source and

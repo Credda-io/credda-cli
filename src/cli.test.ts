@@ -20,6 +20,7 @@ describe('the mirrored command table', () => {
     expect(Object.keys(COMMANDS).sort()).toEqual(
       [
         'cancel',
+        'discover',
         'doctor',
         'events',
         'fix',
@@ -85,8 +86,21 @@ describe('the mirrored command table', () => {
   it('gives investigate no flag that overrides the provider gate on the fix stage', () => {
     // How far a run goes is decided by the configured provider, never by the
     // command line. See this file's header in the engine's copy.
+    //
+    // This list is exhaustive on purpose: a flag added upstream lands here as a
+    // failure that has to be read before it is accepted, rather than arriving
+    // unexamined with the next copy. `--ref` was accepted on that basis on
+    // 2026-08-30 -- it records where a report came from and is written to the
+    // run, so it decides nothing about which stages are entered.
     const investigate = Object.keys(COMMANDS.investigate.flags);
-    expect(investigate).toEqual(['sandbox', 'provider', 'budget-minutes', 'max-turns', 'out']);
+    expect(investigate).toEqual([
+      'sandbox',
+      'provider',
+      'budget-minutes',
+      'max-turns',
+      'out',
+      'ref',
+    ]);
   });
 });
 

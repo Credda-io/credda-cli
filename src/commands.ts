@@ -748,13 +748,17 @@ const CANCEL: CommandSpec = {
  * ADR 0024 decides that discovery produces a REPORT and the existing pipeline
  * decides what it is worth. That is the whole design and this command is the
  * only thing that makes it reachable: `discoverFromRepository()` in
- * `@credda/repository` walks a tree, runs four locally decidable rules, and
- * returns candidates in the same `{title, body}` slot a forge issue and a
- * rendered signal fill. Until this existed nothing read them.
+ * `@credda/repository` walks a tree, runs both rule sets -- the security
+ * classes and the locally decidable defect classes -- and returns candidates in
+ * the same `{title, body}` slot a forge issue and a rendered signal fill. Until
+ * this existed nothing read them.
  *
- * The public copy at `web/app/(site)/pricing/page.tsx:59` says Credda "finds
- * bugs and security vulnerabilities" and that sentence is still false. This
- * command finds SHAPES and writes reports about them. A candidate is a report,
+ * "Credda finds bugs and security vulnerabilities" is the sentence this command
+ * must never be read as, wherever it is written. It finds SHAPES and writes
+ * reports about them, and measured against 160 real cases from 50 real
+ * repositories it confirmed none of them: 103 candidates, none of which fell
+ * silent at the maintainer's fix, and on no case did a finder name the defect
+ * the case pins (ADR 0024, amendment). A candidate is a report,
  * not a finding and not a vulnerability disclosure, and every one of them is
  * still owed a reproduction before it is anything at all -- which is why the
  * output leads with the observation that would refute each one, and why it
@@ -800,10 +804,12 @@ const DISCOVER: CommandSpec = {
   details: [
     'What a run does, and what it costs:',
     '  it walks the checkout, reads its JavaScript and TypeScript source, runs',
-    '  four rules over it, and writes an ordinary bug report about each shape it',
-    '  saw. No sandbox, no container, no install, no network, no model call and',
-    '  no API key. Nothing in the repository is executed and nothing in it is',
-    '  written to.',
+    '  both rule sets over it -- the security classes and the locally decidable',
+    '  defect classes -- and writes an ordinary bug report about each shape it',
+    '  saw. The listing counts the classes off those lists rather than naming a',
+    '  number here, which is a number that rots. No sandbox, no container, no',
+    '  install, no network, no model call and no API key. Nothing in the',
+    '  repository is executed and nothing in it is written to.',
     '',
     'What a candidate is:',
     '  a REPORT Credda wrote instead of waiting for somebody to write one. It is',
@@ -829,10 +835,18 @@ const DISCOVER: CommandSpec = {
     '  and the identical refusals, and a candidate that cannot be reproduced',
     '  produces nothing. That is the correct outcome, and the common one.',
     '',
-    'No candidates is not a clean bill of health. Four locally decidable shapes',
-    'were looked for; this repository\'s own 400 source files yield zero. The',
-    'output says how many files were read and whether the walk stopped short,',
-    'because "we did not see it" and "it cannot happen" are different claims.',
+    'No candidates is not a clean bill of health. Two rule sets are looked for --',
+    'the security shapes and the locally decidable defect shapes -- and the',
+    'listing names which one spoke for each candidate. The output says how many',
+    'files were read and whether the walk stopped short, because "we did not',
+    'see it" and "it cannot happen" are different claims.',
+    '',
+    'What this has been measured to do, so a candidate is read for what it is:',
+    '  against 160 cases from 50 real repositories -- each at a commit where a',
+    '  defect is present and again at the maintainer\'s fix -- the rules emitted',
+    '  103 candidates, none of them fell silent at the fix, and on no case did a',
+    '  rule name the defect the case pins. Read a candidate as a report worth a',
+    '  reproduction, never as a defect this found.',
     '',
     'Exit code is 0 whether or not anything was found. A list of reports is not',
     'a failed check.',
