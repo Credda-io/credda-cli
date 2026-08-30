@@ -1,8 +1,10 @@
 /**
  * A small argument parser for the `credda` command surface.
  *
- * Hand-rolled deliberately: the surface is six commands and a dozen flags, and
- * a dependency here would be a supply-chain risk taken on for string parsing.
+ * Hand-rolled deliberately: a dependency here would be a supply-chain risk
+ * taken on for string parsing. The surface has outgrown the "six commands and a
+ * dozen flags" this line used to claim -- it is 13 commands, 3 aliases and 27
+ * flags -- and the argument holds better at that size, not worse.
  * The parser is spec-driven so `--help` is generated from the same data the
  * parser validates against and cannot drift from it.
  */

@@ -882,9 +882,12 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
       },
     },
     details: [
-      'Reports pass / warn / fail for the Node version, git, the active model',
-      'provider, the selected sandbox, and CREDDA_HOME. Exits non-zero only when',
-      'something is genuinely broken; warnings alone exit 0.',
+      'Reports pass / warn / fail for eight checks that always run: the Node',
+      'version, git, configuration, the active model provider, the selected',
+      'sandbox, the container plane, CREDDA_HOME and the database. The sandbox',
+      'image is a ninth, reported only when docker is the selected plane or',
+      '--deep was given. Exits non-zero only when something is genuinely broken;',
+      'warnings alone exit 0.',
       '',
       'With a <repo-path>, it also reports whether that repository could be',
       'prepared at all: the package manager and the exact install command a run',
@@ -1148,8 +1151,11 @@ const ENVIRONMENT: readonly (readonly [string, string])[] = [
       '                      is refused them and must use docker. Credda never falls back\n' +
       '                      silently in either direction.',
   ],
+  ['CREDDA_SANDBOX_IMAGE', 'Overrides the image the docker plane builds or pulls'],
   ['CREDDA_LOG_LEVEL', 'debug | info | warn | error (default warn)'],
   ['NO_COLOR', 'Set to any value to disable ANSI colour'],
+  ['CREDDA_ASCII', 'Set to any value to draw with ASCII instead of box characters'],
+  ['TERM', "'dumb' is treated the same as NO_COLOR"],
 ];
 
 export function rootUsage(): string {
