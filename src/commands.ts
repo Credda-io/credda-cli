@@ -234,6 +234,31 @@ const INVESTIGATE: CommandSpec = {
       valueName: '<file>',
       description: 'Also write the machine-readable result of this run to <file> as JSON',
     },
+    /*
+     * Where the report came from, recorded on the run.
+     *
+     * The engine API's create route has accepted `issueRef` since it existed;
+     * a terminal had no way to set it, so every locally started run recorded
+     * nothing about its own origin. That was tolerable while every local run
+     * was a person pasting a sentence they had written. It stopped being
+     * tolerable when `credda discover` began writing reports, because a run
+     * started from a report Credda wrote itself is a different claim from one
+     * a person filed and a reader has to be able to tell which.
+     *
+     * It is a general flag and not a discovery flag on purpose: nothing
+     * downstream branches on the value, and a person pasting a tracker URL
+     * here is using it exactly as intended. ADR 0024 is explicit that
+     * discovery adds no stage, no terminal and no refusal, so its only trace
+     * in the pipeline is this string on the record.
+     */
+    ref: {
+      kind: 'string',
+      valueName: '<ref>',
+      description:
+        'Record where this report came from -- an issue reference, a URL, or the\n' +
+        '                      ref `credda discover` prints. Stored on the run and shown by\n' +
+        '                      `credda report`. Nothing branches on it',
+    },
   },
   details: [
     'What a run does, and where it stops:',
@@ -247,6 +272,11 @@ const INVESTIGATE: CommandSpec = {
     '  "text"     a short description given inline',
     '  @file      read the report from a file (shells truncate multi-line arguments)',
     '  -          read the report from stdin',
+    '',
+    'Recording where the report came from:',
+    '  --ref <ref>  is written to the run and printed by `credda report`. Use it',
+    '               for the issue this came from, or paste the ref that',
+    '               `credda discover` prints beside a candidate it wrote.',
     '',
     'Configuration precedence, highest first:',
     '  1. the CLI flag on this command line',
@@ -710,10 +740,111 @@ const CANCEL: CommandSpec = {
   ],
 };
 
+/**
+ * `credda discover`: read a checkout and write the bug reports nobody filed.
+ *
+ * ## What it is, and the sentence it must never be read as
+ *
+ * ADR 0024 decides that discovery produces a REPORT and the existing pipeline
+ * decides what it is worth. That is the whole design and this command is the
+ * only thing that makes it reachable: `discoverFromRepository()` in
+ * `@credda/repository` walks a tree, runs four locally decidable rules, and
+ * returns candidates in the same `{title, body}` slot a forge issue and a
+ * rendered signal fill. Until this existed nothing read them.
+ *
+ * The public copy at `web/app/(site)/pricing/page.tsx:59` says Credda "finds
+ * bugs and security vulnerabilities" and that sentence is still false. This
+ * command finds SHAPES and writes reports about them. A candidate is a report,
+ * not a finding and not a vulnerability disclosure, and every one of them is
+ * still owed a reproduction before it is anything at all -- which is why the
+ * output leads with the observation that would refute each one, and why it
+ * states no severity. Severity is a judgement about exposure and a single-file
+ * rule knows nothing about what a repository is exposed to.
+ *
+ * ## Why it does not start runs
+ *
+ * Discovery finding something is not consent to spend a model budget on it.
+ * This command writes reports and stops; the operator decides which of them is
+ * worth a sandbox, and starts it with `credda investigate` like any other
+ * report. That is the same discipline as `start: true` defaulting to false on
+ * the API's create route, and it is the reason this command may be run on
+ * anything without asking what it will cost.
+ *
+ * ## What it may never come to do
+ *
+ * It reads. It executes nothing -- not the repository's code and not the
+ * programs it emits, whose entire defect in the ReDoS case is that running them
+ * hangs a CPU (ADR 0005). The day this command runs one, it is an unsandboxed
+ * execution path opened by a scanner, and the name is a promise again.
+ */
+const DISCOVER: CommandSpec = {
+  name: 'discover',
+  summary: 'Read a checkout and write the bug reports nobody filed. Starts nothing',
+  args: '<repo-path> [--out <dir>] [--max-files <n>] [--json]',
+  flags: {
+    out: {
+      kind: 'string',
+      valueName: '<dir>',
+      description:
+        'Write each candidate report to a file in <dir>, and print the exact\n' +
+        '                      investigate command for it. Without this, the candidates are\n' +
+        '                      listed and nothing is written',
+    },
+    'max-files': {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'How many source files to read',
+      defaultNote: '400',
+    },
+  },
+  details: [
+    'What a run does, and what it costs:',
+    '  it walks the checkout, reads its JavaScript and TypeScript source, runs',
+    '  four rules over it, and writes an ordinary bug report about each shape it',
+    '  saw. No sandbox, no container, no install, no network, no model call and',
+    '  no API key. Nothing in the repository is executed and nothing in it is',
+    '  written to.',
+    '',
+    'What a candidate is:',
+    '  a REPORT Credda wrote instead of waiting for somebody to write one. It is',
+    '  not a finding, it is not a vulnerability disclosure, and it states no',
+    '  severity -- severity is a judgement about exposure, and a rule reading one',
+    '  file knows nothing about what this repository is exposed to. Each report',
+    '  carries a program that decides the question by running, and that program',
+    '  is written so it can come back saying no. Most of them do.',
+    '',
+    'Nothing is started:',
+    '  discovery finding something is not consent to spend a model budget on it.',
+    '  This command creates no investigation. You choose which candidate is worth',
+    '  one, and start it yourself:',
+    '',
+    '    credda discover ./my-app --out ./candidates',
+    '    credda investigate ./my-app @./candidates/01-redos-src-parse-ts-84.md \\',
+    '      --ref discovery:REDOS:src/parse.ts:84',
+    '',
+    '  The --ref is printed for you beside each candidate. It is what records',
+    '  that Credda wrote the report, so the run reads as its own claim rather',
+    '  than as somebody else\'s. Nothing downstream branches on it: a discovered',
+    '  report is put through the identical pipeline, with the identical stages',
+    '  and the identical refusals, and a candidate that cannot be reproduced',
+    '  produces nothing. That is the correct outcome, and the common one.',
+    '',
+    'No candidates is not a clean bill of health. Four locally decidable shapes',
+    'were looked for; this repository\'s own 400 source files yield zero. The',
+    'output says how many files were read and whether the walk stopped short,',
+    'because "we did not see it" and "it cannot happen" are different claims.',
+    '',
+    'Exit code is 0 whether or not anything was found. A list of reports is not',
+    'a failed check.',
+  ],
+};
+
 export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   investigate: INVESTIGATE,
 
   triage: TRIAGE,
+
+  discover: DISCOVER,
 
   doctor: {
     name: 'doctor',
