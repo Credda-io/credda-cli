@@ -104,7 +104,7 @@ credda investigate <repo-path> <description | @file | ->  [options]
 | `doctor` | Check that this environment can reproduce a bug |
 | `reap` | Remove sandbox containers left behind by an interrupted run |
 | `init` | Write a `credda.config.json` with documented defaults |
-| `status` | List recent investigations |
+| `status` | List recent investigations, filtered by repository, state or outcome |
 | `report` | Show what an investigation established, and what it did not |
 | `inspect` | Show everything one run recorded, in full |
 | `events` | Show the event timeline for an investigation |
@@ -131,7 +131,8 @@ actually produces, so an old name is never read as a promise about the output.
 
 Other commands: `triage --repo <path>`; `report`/`resolution` `--markdown` and
 `--patch`; `doctor --deep`; `reap --dry-run --max-age-hours <n>`;
-`init --global --force`; `status --limit <n>`; `events --since <n>` and
+`init --global --force`; `status --repository <path-or-id> --state <state>
+--outcome <outcome> --limit <n> --offset <n>`; `events --since <n>` and
 `--follow` (`-f`); `cancel --reason <text>`; `validations --repository <path-or-id>
 --state <state> --outcome <outcome> --limit <n> --offset <n>`; `validation
 --severity <s> --status <s> --limit <n> --offset <n>`.

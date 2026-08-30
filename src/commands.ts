@@ -429,6 +429,57 @@ const TRIAGE: CommandSpec = {
  * constant it duplicates. A vocabulary that drifts fails there rather than
  * turning into a flag the API rejects.
  */
+/**
+ * `INVESTIGATION_STATES` and `OUTCOMES` from `packages/shared/src/states.ts`,
+ * written out for the same reason the validation vocabularies below are: the
+ * mirror package depends on nothing and may not import `@credda/shared`.
+ * `apps/cli/test/commands.test.ts` holds both lists to their originals.
+ */
+const INVESTIGATION_STATE_CHOICES = [
+  'CREATED',
+  'PREPARING_ENVIRONMENT',
+  'ANALYZING_REPOSITORY',
+  'UNDERSTANDING_ISSUE',
+  'INVESTIGATING',
+  'ATTEMPTING_REPRODUCTION',
+  'REPRODUCED',
+  'DIAGNOSING',
+  'ROOT_CAUSE_IDENTIFIED',
+  'REPRODUCED_AND_DIAGNOSED',
+  'REPRODUCED_NOT_DIAGNOSED',
+  'CONTRADICTS_SPECIFICATION',
+  'ISSUE_ALREADY_RESOLVED',
+  'REPORT_REFUTED',
+  'NO_CHANGE_REQUIRED',
+  'NO_RUNNABLE_CHECK',
+  'REPRODUCTION_FAILED',
+  'INSUFFICIENT_EVIDENCE',
+  'GENERATING_PATCH',
+  'TESTING_PATCH',
+  'VERIFYING',
+  'VERIFIED',
+  'READY_FOR_REVIEW',
+  'VERIFICATION_FAILED',
+  'PATCH_REJECTED',
+  'NEEDS_HUMAN_INPUT',
+  'CANCELLED',
+  'FAILED',
+] as const;
+
+const OUTCOME_CHOICES = [
+  'REPRODUCED_AND_DIAGNOSED',
+  'REPRODUCED_NOT_DIAGNOSED',
+  'CONTRADICTS_SPECIFICATION',
+  'NO_CHANGE_REQUIRED',
+  'NO_RUNNABLE_CHECK',
+  'INCONCLUSIVE',
+  'VERIFIED',
+  'PARTIALLY_VERIFIED',
+  'PATCH_REJECTED',
+  'CANCELLED',
+  'ERRORED',
+] as const;
+
 const VALIDATION_STATE_CHOICES = [
   'CREATED',
   'ANALYZING_CHANGE',
@@ -741,13 +792,64 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
 
   cancel: CANCEL,
 
+  /*
+   * The filters are the ones `apps/api/src/routes/investigations.ts` accepts,
+   * under the same names and the same vocabularies, for the reason
+   * {@link VALIDATIONS} gives: a filter that means something different on two
+   * surfaces is worse than a missing one.
+   *
+   * This command had only `--limit` while its younger sibling `validations`
+   * shipped with the full set, so the two questions most often asked of a queue
+   * -- whose repository, and how did it end -- could be asked of a validation
+   * from a terminal and not of an investigation. Every one of these is a filter
+   * the local store has always supported; nothing new is read.
+   *
+   * `--signal` is the one API filter deliberately absent. A signal is a row
+   * this CLI never writes: a run started from a terminal is started by the
+   * person at it, so `signalId` is null on every investigation in a local
+   * store, and the flag could only ever return nothing.
+   */
   status: {
     name: 'status',
     summary: 'List recent investigations',
-    args: '[--limit <n>] [--json]',
+    args:
+      '[--repository <path-or-id>] [--state <state>] [--outcome <outcome>] ' +
+      '[--limit <n>] [--offset <n>] [--json]',
     flags: {
+      repository: {
+        kind: 'string',
+        valueName: '<path-or-id>',
+        description:
+          'Only investigations of one repository. A path to a checkout or the\n' +
+          '                      repository id; an unknown one is refused rather than answered\n' +
+          '                      with an empty list',
+      },
+      state: {
+        kind: 'string',
+        choices: INVESTIGATION_STATE_CHOICES,
+        valueName: '<state>',
+        description: 'Only investigations in this state',
+      },
+      outcome: {
+        kind: 'string',
+        choices: OUTCOME_CHOICES,
+        valueName: '<outcome>',
+        description: 'Only investigations that concluded this',
+      },
       limit: { kind: 'number', valueName: '<n>', description: 'How many to list', defaultNote: '20' },
+      offset: { kind: 'number', valueName: '<n>', description: 'Skip this many first', defaultNote: '0' },
     },
+    details: [
+      'STATE is where the run got to, including the terminal it stopped on.',
+      'OUTCOME is what it concluded, and a run still in flight has none -- so it',
+      'matches no --outcome value, and --state is the way to ask for it.',
+      '',
+      'Abstaining is a conclusion, not a gap: NO_CHANGE_REQUIRED means the',
+      'reported thing did not happen, and INCONCLUSIVE means the run would not',
+      'claim what it had not established. Both are successes and both exit 0.',
+      '',
+      '  credda validations    lists validation runs instead',
+    ],
   },
 
   report: REPORT,
