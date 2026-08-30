@@ -135,7 +135,7 @@ Other commands: `triage --repo <path>`; `discover --out <dir>` and
 `--max-files <n>`; `report`/`resolution` `--markdown` and
 `--patch`; `doctor --deep`; `reap --dry-run --max-age-hours <n>`;
 `init --global --force`; `status --repository <path-or-id> --state <state>
---outcome <outcome> --limit <n> --offset <n>`; `events --since <n>` and
+--outcome <outcome> --ref <ref> --limit <n> --offset <n>`; `events --since <n>` and
 `--follow` (`-f`); `cancel --reason <text>`; `validations --repository <path-or-id>
 --state <state> --outcome <outcome> --limit <n> --offset <n>`; `validation
 --severity <s> --status <s> --limit <n> --offset <n>`.
