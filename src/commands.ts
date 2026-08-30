@@ -41,10 +41,12 @@ import { GLOBAL_FLAGS, type CommandSpec, type FlagSpec } from './args.js';
  * one. See {@link EXIT.COMMENT_READY} for why that way round.
  *
  * The report record (ADR 0012) adds no code, and the omission is a decision. Its
- * confidence class is the obvious candidate -- something like "5:
- * NOT_ESTABLISHED" -- and it is the wrong thing to encode. `NOT_ESTABLISHED` is
- * the *correct* class for an abstention, which is the outcome this table already
- * spends two of its five codes insisting is a success; giving it a non-zero code
+ * confidence class is the obvious candidate -- something like "8:
+ * NOT_ESTABLISHED", the next free number -- and it is the wrong thing to encode.
+ * `NOT_ESTABLISHED` is the *correct* class for an abstention, which is the
+ * outcome this table already insists is a success: code 0 covers it for an
+ * investigation and for triage alike, and it is the only one of these eight
+ * codes that does. Giving it a non-zero code
  * would make every CI that treats non-zero as failure fail on exactly the runs
  * Credda gets right, and would create a second, contradictory answer to a
  * question `outcome` already answers. The confidence class is a property of the
