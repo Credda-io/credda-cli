@@ -203,8 +203,11 @@ const INVESTIGATE: CommandSpec = {
     sandbox: {
       kind: 'string',
       choices: ['local', 'native', 'docker'],
-      valueName: '<local|docker>',
-      description: 'Execution plane. local runs repository code directly on this host',
+      valueName: '<local|native|docker>',
+      description:
+        'Execution plane. local and native both run repository code directly on\n' +
+        '                      this host and only a local credda invocation may select them;\n' +
+        '                      docker isolates it. Credda never falls back silently',
       defaultNote: 'local',
     },
     provider: {
@@ -358,6 +361,10 @@ const REPORT: CommandSpec = {
     'NOT establish, and its "What was not done" section states, from the record,',
     'whether code was written and what has not been shown. That section is the',
     'point; do not strip it before sharing the rest.',
+    '',
+    'Under --json neither document is emitted: a JSONL stream may carry nothing',
+    'but objects. The suppressed flag is named on stderr rather than dropped in',
+    'silence, and the document is one command away without --json.',
     '',
     '--patch writes the unified diff this run recorded, on stdout, with nothing',
     'around it. It exists so a delivery surface can commit what the run actually',
@@ -949,17 +956,24 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
    * from a terminal and not of an investigation. Every one of these is a filter
    * the local store has always supported; nothing new is read.
    *
-   * `--signal` is the one API filter deliberately absent. A signal is a row
-   * this CLI never writes: a run started from a terminal is started by the
-   * person at it, so `signalId` is null on every investigation in a local
-   * store, and the flag could only ever return nothing.
+   * `--signal` and `--hasSignal` are the API filters deliberately absent. A
+   * signal is a row this CLI never writes: a run started from a terminal is
+   * started by the person at it, so `signalId` is null on every investigation
+   * in a local store, and `--signal` could only ever return nothing while
+   * `--hasSignal false` could only ever return everything.
+   *
+   * `--ref` is the opposite case and is here for it. Provenance is a column
+   * this CLI DOES write -- `credda investigate --ref` records it, and `credda
+   * discover` prints a ref for every candidate it writes precisely so the run
+   * started from one says Credda wrote the report -- so until this flag the
+   * terminal wrote a fact it could not then ask a question about.
    */
   status: {
     name: 'status',
     summary: 'List recent investigations',
     args:
       '[--repository <path-or-id>] [--state <state>] [--outcome <outcome>] ' +
-      '[--limit <n>] [--offset <n>] [--json]',
+      '[--ref <ref>] [--limit <n>] [--offset <n>] [--json]',
     flags: {
       repository: {
         kind: 'string',
@@ -981,6 +995,14 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
         valueName: '<outcome>',
         description: 'Only investigations that concluded this',
       },
+      ref: {
+        kind: 'string',
+        valueName: '<ref>',
+        description:
+          'Only investigations recorded as coming from this ref, matched whole.\n' +
+          '                      The value `credda investigate --ref` stored, and the one\n' +
+          '                      `credda discover` prints beside a candidate',
+      },
       limit: { kind: 'number', valueName: '<n>', description: 'How many to list', defaultNote: '20' },
       offset: { kind: 'number', valueName: '<n>', description: 'Skip this many first', defaultNote: '0' },
     },
@@ -992,6 +1014,12 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
       'Abstaining is a conclusion, not a gap: NO_CHANGE_REQUIRED means the',
       'reported thing did not happen, and INCONCLUSIVE means the run would not',
       'claim what it had not established. Both are successes and both exit 0.',
+      '',
+      '--ref asks where a run came from. It matches the whole string, which is',
+      'the form both writers of it produce: an issue reference or URL you passed',
+      'to `credda investigate --ref`, or the `discovery:<CLASS>:<file>:<line>`',
+      'ref `credda discover` prints beside a candidate. A run started with no ref',
+      'matches no value here.',
       '',
       '  credda validations    lists validation runs instead',
     ],
@@ -1014,6 +1042,13 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
       'This is the run: the reproduction, every hypothesis including the refuted',
       'ones, and the evidence records. For what the run established and what it',
       'did not, use: credda report <id>',
+      '',
+      'What it spent is printed from the run\'s own cost record, and under --json',
+      'as `cost`, beside the ceiling that bounded it as `effectiveBudget`. Both',
+      'are absent rather than zero when nothing recorded them: a run still going,',
+      'and one that died before it could record, did not measure zero. A run',
+      'started from this terminal is bounded by the flags in its own banner, and',
+      'nothing writes that ceiling down, so `effectiveBudget` is null for it.',
     ],
   },
 
