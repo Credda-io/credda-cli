@@ -19,6 +19,8 @@ describe('the mirrored command table', () => {
   it('offers the commands the engine CLI offers, and no others', () => {
     expect(Object.keys(COMMANDS).sort()).toEqual(
       [
+        'cancel',
+        'discover',
         'doctor',
         'events',
         'fix',
@@ -31,6 +33,8 @@ describe('the mirrored command table', () => {
         'resolve',
         'status',
         'triage',
+        'validation',
+        'validations',
       ].sort(),
     );
   });
@@ -43,11 +47,60 @@ describe('the mirrored command table', () => {
     expect(canonicalCommand('nonesuch')).toBe('nonesuch');
   });
 
-  it("does not offer a flag that turns on patch writing, because the engine's table has none", () => {
+  /*
+   * This test used to forbid the name `patch` anywhere in the table, on the
+   * stated grounds that the engine's table had no such flag. That fact expired:
+   * `credda report --patch` landed with the delivery work, and the mirror
+   * gained it when this file's sibling was re-copied on 2026-08-29. Forbidding
+   * a name the engine now ships would have made the mirror lie to keep a test
+   * green, which is the one thing a mirror may never do.
+   *
+   * What replaces it guards the invariant the old test was reaching for.
+   * Credda proposes and never merges, and no flag on this table may be the
+   * thing that applies a change, delivers one, or overrides the provider gate
+   * that decides whether a patch is authored at all. `report --patch` is not
+   * that: `report` only reads a finished run, and the flag selects which
+   * recorded artefact is printed on stdout.
+   */
+  it('offers no flag that applies, delivers or merges a change', () => {
     const flags = Object.values(COMMANDS).flatMap((command) => Object.keys(command.flags));
-    for (const forbidden of ['fix', 'patch', 'apply', 'write', 'pr', 'pull-request']) {
+    for (const forbidden of ['fix', 'apply', 'write', 'merge', 'pr', 'pull-request', 'push', 'commit']) {
       expect(flags).not.toContain(forbidden);
     }
+  });
+
+  it('carries --patch only on report, which reads a finished run and writes nothing', () => {
+    // `resolution` is a permanent alias for `report` and shares its spec
+    // object, so collapse names to canonical ones before asserting.
+    const carrying = [
+      ...new Set(
+        Object.entries(COMMANDS)
+          .filter(([, command]) => 'patch' in command.flags)
+          .map(([name]) => canonicalCommand(name)),
+      ),
+    ];
+    expect(carrying).toEqual(['report']);
+    expect(COMMANDS.report.flags.patch?.kind).toBe('boolean');
+  });
+
+  it('gives investigate no flag that overrides the provider gate on the fix stage', () => {
+    // How far a run goes is decided by the configured provider, never by the
+    // command line. See this file's header in the engine's copy.
+    //
+    // This list is exhaustive on purpose: a flag added upstream lands here as a
+    // failure that has to be read before it is accepted, rather than arriving
+    // unexamined with the next copy. `--ref` was accepted on that basis on
+    // 2026-08-30 -- it records where a report came from and is written to the
+    // run, so it decides nothing about which stages are entered.
+    const investigate = Object.keys(COMMANDS.investigate.flags);
+    expect(investigate).toEqual([
+      'sandbox',
+      'provider',
+      'budget-minutes',
+      'max-turns',
+      'out',
+      'ref',
+    ]);
   });
 });
 
@@ -122,6 +175,38 @@ describe('exit codes', () => {
     expect(EXIT.COMMENT_READY).toBe(6);
     expect(EXIT.COMMENT_READY).not.toBe(EXIT.NO_RUNNABLE_CHECK);
     expect(EXIT.SUCCESS).toBe(0);
+  });
+
+  /*
+   * The distinction `credda cancel` exists to preserve, asserted on the only
+   * part of it a caller outside the engine repository can read.
+   *
+   * A cancel has two good answers: the run is over, or the run has merely been
+   * asked to end and is at this moment still holding a sandbox and still
+   * spending a model budget. If both were 0, then `credda cancel $id && deploy`
+   * would deploy over a live run, which is the one false claim the whole
+   * cancel path is written to avoid. 7 is therefore not decoration and may not
+   * be folded into 0 for tidiness.
+   *
+   * Nor into 4. 4 is `credda investigate` saying a run it was executing ended.
+   * 7 is a different process saying it asked one to, without knowing whether it
+   * did. Collapsing them would erase exactly the difference.
+   */
+  it('separates asking a run to stop from a run having stopped', () => {
+    expect(EXIT.CANCELLATION_REQUESTED).toBe(7);
+    expect(EXIT.CANCELLATION_REQUESTED).not.toBe(EXIT.SUCCESS);
+    expect(EXIT.CANCELLATION_REQUESTED).not.toBe(EXIT.CANCELLED);
+    expect(EXIT_CODE_HELP.join('\n')).toMatch(/7\s+CANCELLATION_REQUESTED/);
+    // The published help has to carry the caveat, not just the number.
+    expect(EXIT_CODE_HELP.join('\n')).toContain('It has NOT stopped');
+  });
+
+  it('does not let the cancel help read as a promise that a run has stopped', () => {
+    const help = COMMANDS['cancel']?.details?.join(' ') ?? '';
+    expect(help).toContain('two good answers and they are not the same answer');
+    expect(help).toContain('It has not stopped');
+    expect(help).toContain('writes its own terminal state');
+    expect(help).toContain('reported as unreachable rather than marked');
   });
 });
 

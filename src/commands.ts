@@ -41,10 +41,12 @@ import { GLOBAL_FLAGS, type CommandSpec, type FlagSpec } from './args.js';
  * one. See {@link EXIT.COMMENT_READY} for why that way round.
  *
  * The report record (ADR 0012) adds no code, and the omission is a decision. Its
- * confidence class is the obvious candidate -- something like "5:
- * NOT_ESTABLISHED" -- and it is the wrong thing to encode. `NOT_ESTABLISHED` is
- * the *correct* class for an abstention, which is the outcome this table already
- * spends two of its five codes insisting is a success; giving it a non-zero code
+ * confidence class is the obvious candidate -- something like "8:
+ * NOT_ESTABLISHED", the next free number -- and it is the wrong thing to encode.
+ * `NOT_ESTABLISHED` is the *correct* class for an abstention, which is the
+ * outcome this table already insists is a success: code 0 covers it for an
+ * investigation and for triage alike, and it is the only one of these eight
+ * codes that does. Giving it a non-zero code
  * would make every CI that treats non-zero as failure fail on exactly the runs
  * Credda gets right, and would create a second, contradictory answer to a
  * question `outcome` already answers. The confidence class is a property of the
@@ -107,6 +109,31 @@ export const EXIT = {
    * design, so the two would stop meaning different things.
    */
   COMMENT_READY: 6,
+  /**
+   * `credda cancel` reached a run that is still executing and asked it to stop.
+   * The request is delivered; the run has not stopped yet.
+   *
+   * ## Why this is not 0, and not 4
+   *
+   * `apps/api/src/routes/investigations.ts` answers the same question with two
+   * different HTTP statuses -- 200 CANCELLED when the run is genuinely over, 202
+   * CANCELLATION_REQUESTED when a process is still inside it holding a sandbox
+   * and a model budget. A shell has no status line to read. It has this number,
+   * and if both answers were 0 then `credda cancel $id && echo stopped` would
+   * print "stopped" over a container that is still running and still spending.
+   * That is the one false claim this whole route was written to avoid, so the
+   * two answers get two codes.
+   *
+   * 4 is the run's own code, returned by `credda investigate` when the run it
+   * was executing was cancelled. It is a statement that a run ended. This is a
+   * statement that one was asked to, made by a different process that cannot
+   * see whether it did. Reusing 4 would collapse exactly the distinction.
+   *
+   * Every way of misreading 7 fails towards waiting rather than towards
+   * assuming: `set -e` stops, a test for 0 does not proceed. `credda events
+   * <id> --follow` is how a caller learns the run actually ended.
+   */
+  CANCELLATION_REQUESTED: 7,
 } as const;
 
 /**
@@ -138,6 +165,11 @@ export const EXIT_CODE_HELP: readonly string[] = [
   '     on stdout. Nothing failed. Triage exits 0 when it correctly has nothing to',
   '     say, which is about half of real issues, so 0 there is silence and 6 is the',
   '     one that means speak.',
+  '  7  CANCELLATION_REQUESTED, from `credda cancel` only: a run is still executing',
+  '     and has been asked to stop. It has NOT stopped. The process tears its sandbox',
+  '     down and writes its own terminal state when it reaches its next checkpoint;',
+  '     follow it with `credda events <id> --follow`. 0 from `credda cancel` means',
+  '     nothing is running, which is a different and stronger claim.',
 ];
 
 /**
@@ -173,8 +205,11 @@ const INVESTIGATE: CommandSpec = {
     sandbox: {
       kind: 'string',
       choices: ['local', 'native', 'docker'],
-      valueName: '<local|docker>',
-      description: 'Execution plane. local runs repository code directly on this host',
+      valueName: '<local|native|docker>',
+      description:
+        'Execution plane. local and native both run repository code directly on\n' +
+        '                      this host and only a local credda invocation may select them;\n' +
+        '                      docker isolates it. Credda never falls back silently',
       defaultNote: 'local',
     },
     provider: {
@@ -204,18 +239,49 @@ const INVESTIGATE: CommandSpec = {
       valueName: '<file>',
       description: 'Also write the machine-readable result of this run to <file> as JSON',
     },
+    /*
+     * Where the report came from, recorded on the run.
+     *
+     * The engine API's create route has accepted `issueRef` since it existed;
+     * a terminal had no way to set it, so every locally started run recorded
+     * nothing about its own origin. That was tolerable while every local run
+     * was a person pasting a sentence they had written. It stopped being
+     * tolerable when `credda discover` began writing reports, because a run
+     * started from a report Credda wrote itself is a different claim from one
+     * a person filed and a reader has to be able to tell which.
+     *
+     * It is a general flag and not a discovery flag on purpose: nothing
+     * downstream branches on the value, and a person pasting a tracker URL
+     * here is using it exactly as intended. ADR 0024 is explicit that
+     * discovery adds no stage, no terminal and no refusal, so its only trace
+     * in the pipeline is this string on the record.
+     */
+    ref: {
+      kind: 'string',
+      valueName: '<ref>',
+      description:
+        'Record where this report came from -- an issue reference, a URL, or the\n' +
+        '                      ref `credda discover` prints. Stored on the run and shown by\n' +
+        '                      `credda report`. Nothing branches on it',
+    },
   },
   details: [
     'What a run does, and where it stops:',
     '  prepare an environment, reproduce the reported failure, capture its',
     '  failure signature, and diagnose a cause where the evidence supports one.',
-    '  It then reports all of it. Credda does not edit your code, does not',
-    '  open a change proposal, and needs no write access to reach any of this.',
+    '  With a model-backed provider it then attempts a fix and verifies it, and',
+    '  it reports all of it. Every stage runs in a disposable copy, so this',
+    '  command changes nothing in your working tree.',
     '',
     'Description sources:',
     '  "text"     a short description given inline',
     '  @file      read the report from a file (shells truncate multi-line arguments)',
     '  -          read the report from stdin',
+    '',
+    'Recording where the report came from:',
+    '  --ref <ref>  is written to the run and printed by `credda report`. Use it',
+    '               for the issue this came from, or paste the ref that',
+    '               `credda discover` prints beside a candidate it wrote.',
     '',
     'Configuration precedence, highest first:',
     '  1. the CLI flag on this command line',
@@ -234,17 +300,22 @@ const INVESTIGATE: CommandSpec = {
  * `report`, with `resolution` as a permanent alias for it.
  *
  * ADR 0012 named this record a *resolution* when the pipeline ended in a patch
- * and a pull request. The record itself has not changed shape, but what a run
- * can fill in has: Change and Verification are stages this version does not
- * perform, so a record produced today carries neither, and calling that a
- * resolution names something the run did not do. `report` names what it is.
+ * and a pull request. ADR 0015 then took the Fix and Verify stages off the V1
+ * path, and for that stretch a record produced today could carry neither.
+ * ADR 0019 (2026-08-27) put both stages back: a run with a model-backed
+ * provider writes a patch and verifies it, so Change and Verification are
+ * filled in again from that run's own records.
+ *
+ * `report` is still the better name. It is what the command does -- show what
+ * the run established -- whether or not the run reached the fix stage, and it
+ * does not promise a resolution to a run that stopped at the diagnosis.
  *
  * `resolution` keeps working, for the same reason `fix` does.
  */
 const REPORT: CommandSpec = {
   name: 'report',
   summary: 'Show what an investigation established, and what it did not',
-  args: '<investigation-id-or-prefix> [--json] [--markdown]',
+  args: '<investigation-id-or-prefix> [--json] [--markdown] [--patch]',
   flags: {
     markdown: {
       kind: 'boolean',
@@ -252,14 +323,28 @@ const REPORT: CommandSpec = {
         'Emit the report as Markdown: the same document Credda posts to a\n' +
         '                      pull request. Pipe it, paste it, or commit it',
     },
+    patch: {
+      kind: 'boolean',
+      description:
+        'Emit the recorded unified diff and nothing else. Exits non-zero\n' +
+        '                      when the run recorded no patch, so a script cannot\n' +
+        '                      mistake an empty document for an empty change',
+    },
   },
   details: [
     'The record (ADR 0012): Bug, Evidence, Reproduction, Root Cause and',
-    'Confidence, which is everything this version of Credda performs.',
+    'Confidence, and, when the run reached the fix stage, Change and',
+    'Verification.',
     '',
-    'Two further sections, Change and Verification, are printed only for an',
-    'older record that carries them. Credda writes no changes now, so a run',
-    'started today reaches neither, and both say so rather than going quiet.',
+    'What the run behind this record does: Credda is handed a LABELLED bug',
+    'report. It reproduces the failure, diagnoses the cause, writes a patch, and',
+    'proves the patch with a test that fails before it and passes after. It',
+    'NEVER merges, and it does not scan a codebase looking for unknown bugs.',
+    '',
+    'Change and Verification are printed from the run\'s own records. Reaching',
+    'them depends on the provider (ADR 0019): a run with no model-backed',
+    'provider stops at the diagnosis and records neither, and both sections say',
+    'that rather than going quiet.',
     '',
     'Every section is derived from something that was executed and recorded, or',
     'it is absent. A section with nothing behind it is not filled in -- the hole',
@@ -275,9 +360,19 @@ const REPORT: CommandSpec = {
     '',
     '--markdown emits the same document the forge delivery posts, which until now',
     'was reachable only from a webhook. It leads with what the investigation did',
-    'NOT establish, and it says in its own words that no code was written and',
-    'nothing above has been shown to be fixed. That section is the point; do not',
-    'strip it before sharing the rest.',
+    'NOT establish, and its "What was not done" section states, from the record,',
+    'whether code was written and what has not been shown. That section is the',
+    'point; do not strip it before sharing the rest.',
+    '',
+    'Under --json neither document is emitted: a JSONL stream may carry nothing',
+    'but objects. The suppressed flag is named on stderr rather than dropped in',
+    'silence, and the document is one command away without --json.',
+    '',
+    '--patch writes the unified diff this run recorded, on stdout, with nothing',
+    'around it. It exists so a delivery surface can commit what the run actually',
+    'produced instead of re-deriving a change from prose; whether that diff may',
+    'be PROPOSED to anyone is a separate question, answered by the delivery',
+    'block in the result file that `credda investigate --out` writes.',
   ],
 };
 
@@ -358,10 +453,421 @@ const TRIAGE: CommandSpec = {
   ],
 };
 
+/**
+ * The vocabularies the validation flags accept, written out here rather than
+ * imported from `@credda/shared`.
+ *
+ * This file is mirrored byte-for-byte into the public `@credda/cli` package,
+ * which depends on nothing and builds outside this monorepo. An import of
+ * `@credda/shared` here would compile in `core` and break the mirror, so the
+ * only import this file may ever take is `./args.js`, which is mirrored
+ * alongside it.
+ *
+ * The copies are held to their originals by a test
+ * (`apps/cli/test/commands.test.ts`) that compares each list to the shared
+ * constant it duplicates. A vocabulary that drifts fails there rather than
+ * turning into a flag the API rejects.
+ */
+/**
+ * `INVESTIGATION_STATES` and `OUTCOMES` from `packages/shared/src/states.ts`,
+ * written out for the same reason the validation vocabularies below are: the
+ * mirror package depends on nothing and may not import `@credda/shared`.
+ * `apps/cli/test/commands.test.ts` holds both lists to their originals.
+ */
+const INVESTIGATION_STATE_CHOICES = [
+  'CREATED',
+  'PREPARING_ENVIRONMENT',
+  'ANALYZING_REPOSITORY',
+  'UNDERSTANDING_ISSUE',
+  'INVESTIGATING',
+  'ATTEMPTING_REPRODUCTION',
+  'REPRODUCED',
+  'DIAGNOSING',
+  'ROOT_CAUSE_IDENTIFIED',
+  'REPRODUCED_AND_DIAGNOSED',
+  'REPRODUCED_NOT_DIAGNOSED',
+  'CONTRADICTS_SPECIFICATION',
+  'ISSUE_ALREADY_RESOLVED',
+  'REPORT_REFUTED',
+  'NO_CHANGE_REQUIRED',
+  'NO_RUNNABLE_CHECK',
+  'REPRODUCTION_FAILED',
+  'INSUFFICIENT_EVIDENCE',
+  'GENERATING_PATCH',
+  'TESTING_PATCH',
+  'VERIFYING',
+  'VERIFIED',
+  'READY_FOR_REVIEW',
+  'VERIFICATION_FAILED',
+  'PATCH_REJECTED',
+  'NEEDS_HUMAN_INPUT',
+  'CANCELLED',
+  'FAILED',
+] as const;
+
+const OUTCOME_CHOICES = [
+  'REPRODUCED_AND_DIAGNOSED',
+  'REPRODUCED_NOT_DIAGNOSED',
+  'CONTRADICTS_SPECIFICATION',
+  'NO_CHANGE_REQUIRED',
+  'NO_RUNNABLE_CHECK',
+  'INCONCLUSIVE',
+  'VERIFIED',
+  'PARTIALLY_VERIFIED',
+  'PATCH_REJECTED',
+  'CANCELLED',
+  'ERRORED',
+] as const;
+
+const VALIDATION_STATE_CHOICES = [
+  'CREATED',
+  'ANALYZING_CHANGE',
+  'UNDERSTANDING_INTENT',
+  'PLANNING',
+  'PREPARING_ENVIRONMENT',
+  'RUNNING',
+  'CONFIRMING_FINDINGS',
+  'INVESTIGATING_FINDING',
+  'COMPLETED',
+  'CANCELLED',
+  'FAILED',
+] as const;
+
+const VALIDATION_OUTCOME_CHOICES = [
+  'VERIFIED',
+  'FAILED',
+  'BLOCKED',
+  'INCONCLUSIVE',
+  'NO_CHANGE_REQUIRED',
+  'CANCELLED',
+  'ERRORED',
+] as const;
+
+const FINDING_SEVERITY_CHOICES = ['HIGH', 'MEDIUM', 'LOW'] as const;
+
+const FINDING_STATUS_CHOICES = ['OPEN', 'DISMISSED', 'ENVIRONMENT_RELATED', 'RESOLVED'] as const;
+
+/**
+ * `credda validations` and `credda validation`: the change-scoped run, read
+ * from a terminal.
+ *
+ * ## Why the object is separate from an investigation, and the commands with it
+ *
+ * An investigation asks whether one reported defect is fixed and answers with
+ * one Outcome. A validation asks whether a change works, which does not
+ * decompose into one question -- it decomposes into n checks that pass, fail,
+ * or turn out to be impossible to run, independently of one another (ADR 0010,
+ * and `packages/shared/src/validation.ts`). `status` and `inspect` cannot be
+ * widened to cover both without one of the two objects reading as the other,
+ * so the pair below mirrors them rather than absorbing them: `validations`
+ * lists, `validation` reads one in full.
+ *
+ * ## What these two commands may never come to mean
+ *
+ * They READ. Nothing here starts a validation, and nothing here writes,
+ * merges, closes or comments. They are the terminal's view of records the
+ * engine already wrote, and a validation is scoped to a change somebody
+ * proposed -- Credda does not go looking through a repository for defects
+ * nobody reported.
+ *
+ * The filters are exactly the ones `apps/api/src/routes/validations.ts`
+ * accepts, under the same names and the same vocabularies, because a filter
+ * that means something different on two surfaces is worse than a missing one.
+ */
+const VALIDATIONS: CommandSpec = {
+  name: 'validations',
+  summary: 'List change-scoped validation runs',
+  args: '[--repository <path-or-id>] [--state <state>] [--outcome <outcome>] [--limit <n>] [--offset <n>]',
+  flags: {
+    repository: {
+      kind: 'string',
+      valueName: '<path-or-id>',
+      description:
+        'Only validations of one repository. A path to a checkout or the\n' +
+        '                      repository id; an unknown one is refused rather than answered\n' +
+        '                      with an empty list',
+    },
+    state: {
+      kind: 'string',
+      choices: VALIDATION_STATE_CHOICES,
+      valueName: '<state>',
+      description: 'Only validations in this state',
+    },
+    outcome: {
+      kind: 'string',
+      choices: VALIDATION_OUTCOME_CHOICES,
+      valueName: '<outcome>',
+      description: 'Only validations that concluded this',
+    },
+    limit: { kind: 'number', valueName: '<n>', description: 'How many to list', defaultNote: '50' },
+    offset: { kind: 'number', valueName: '<n>', description: 'Skip this many first', defaultNote: '0' },
+  },
+  details: [
+    'A validation is the change-scoped run: it takes a change somebody proposed',
+    'and asks, check by check, whether it works. It is a different object from an',
+    'investigation, which takes one reported defect and asks whether it is fixed.',
+    '  credda status         lists investigations instead',
+    '',
+    'STATE is where the run got to. OUTCOME is what it concluded, and only the',
+    'outcome is a verdict: a run that finished and found two failures is as',
+    'COMPLETED as one that found none.',
+    '',
+    'VERIFIED requires at least one check to have actually passed. A run with no',
+    'passing check is INCONCLUSIVE, never a clean bill of health, and BLOCKED',
+    'means the environment would not come up so nothing was asked of the change',
+    'at all.',
+    '',
+    'Read one of them in full with:  credda validation <id>',
+  ],
+};
+
+const VALIDATION: CommandSpec = {
+  name: 'validation',
+  summary: 'Show one validation: its checks, and the findings they raised',
+  args: '<validation-id-or-prefix> [--severity <s>] [--status <s>] [--limit <n>] [--offset <n>]',
+  flags: {
+    severity: {
+      kind: 'string',
+      choices: FINDING_SEVERITY_CHOICES,
+      valueName: '<severity>',
+      description: 'Only findings of this severity',
+    },
+    status: {
+      kind: 'string',
+      choices: FINDING_STATUS_CHOICES,
+      valueName: '<status>',
+      description: 'Only findings with this status',
+    },
+    limit: {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'How many findings to show',
+      defaultNote: '50',
+    },
+    offset: {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'Skip this many findings first',
+      defaultNote: '0',
+    },
+  },
+  details: [
+    'Any unambiguous prefix of a validation id is accepted.',
+    '  credda validations    lists recent validations',
+    '',
+    'The plan is printed whole, in the order it was executed, and every check is',
+    'shown with the status it reached. A check that was never run is printed as',
+    'PENDING rather than omitted, because a silently missing check reads as a',
+    'passing one.',
+    '',
+    'Check statuses that are not failures, and are not successes either:',
+    '  PRE_EXISTING_FAILURE  it fails on this change and fails identically on the',
+    '                        base commit, so this change did not cause it. Shown',
+    '                        as context and never raised as a finding.',
+    '  BLOCKED               it could not be executed at all, so nothing was',
+    '                        observed about the change in either direction.',
+    '',
+    'A finding is narrower than a failure: a check reaches FAILED only after the',
+    'base commit was re-run and passed there, so every finding below carries the',
+    'fact that this change caused it.',
+    '',
+    'This command reads records. It starts nothing, writes nothing, and Credda',
+    'never merges a change.',
+    '',
+    'The findings filters narrow the findings only; the plan above them is always',
+    'printed whole, because a plan cut to a filter is a plan a reader cannot',
+    'check the outcome against.',
+  ],
+};
+
+/**
+ * Stopping a run that is already going.
+ *
+ * ## Why this command exists at all
+ *
+ * Ctrl-C stops a run from the terminal that started it. That covers the case
+ * where the operator is still sitting there, and it is the only case Credda
+ * covered: a run started in a terminal that has since been closed, backgrounded,
+ * or left on another tab could not be stopped by anything short of `kill`, and
+ * `kill` leaves the sandbox container running -- which is why `credda reap`
+ * exists.
+ *
+ * `apps/api` has the same shape of problem from the other side and refuses to
+ * paper over it: `POST /api/investigations/:id/cancel` answers a CLI-started run
+ * with 409 NOT_CANCELLABLE, because the job queue never saw that run and the API
+ * cannot reach the process executing it. This command is the reach that answer
+ * says is missing, for the one machine where it is possible: `credda
+ * investigate` records its pid beside the store, and this reads it and sends the
+ * interrupt the running process already handles.
+ *
+ * ## What it may never say
+ *
+ * A cancel that reports success without stopping the run is worse than no
+ * cancel at all -- it tells an operator something false about their own machine
+ * and their own bill. So the two answers stay apart everywhere they are
+ * expressed: in the text, in the exit code (0 stopped, 7 asked), and in
+ * `CancelOutcome`, where `stopped: true` exists only on the outcomes for which
+ * it is true and a renderer that prints "Cancelled." on a request does not
+ * compile.
+ */
+const CANCEL: CommandSpec = {
+  name: 'cancel',
+  summary: 'Stop a running investigation, or say why it cannot be stopped',
+  args: '<investigation-id-or-prefix> [--reason <text>]',
+  flags: {
+    reason: {
+      kind: 'string',
+      valueName: '<text>',
+      description:
+        'Recorded on the investigation. Not required: a cancel with nothing\n' +
+        '                      said is still a cancel',
+    },
+  },
+  details: [
+    'Any unambiguous prefix of an investigation id is accepted.',
+    '',
+    'There are two good answers and they are not the same answer:',
+    '',
+    '  stopped     nothing is running. The run had not started, or its process is',
+    '              already gone. The record is CANCELLED. Exit code 0.',
+    '  asked       a process on this machine is inside the run, holding a sandbox',
+    '              and possibly a model call. It was signalled. It has not stopped:',
+    '              it stops at its next checkpoint, tears the sandbox down, and',
+    '              writes its own terminal state. This command does not write that',
+    '              state and cannot say when it will be written. Exit code 7.',
+    '',
+    'Follow the second one to its end with:  credda events <id> --follow',
+    '',
+    'A run that already finished cannot be stopped and cannot be undone, and a run',
+    'this machine cannot reach is reported as unreachable rather than marked',
+    'cancelled: marking it would be a state the still-running engine overwrites',
+    'minutes later, having spent the whole budget you thought you had stopped.',
+    'Both exit 2.',
+    '',
+    'Cancelling a run that was killed rather than interrupted also leaves its',
+    'sandbox container behind. Clean those up with:  credda reap',
+  ],
+};
+
+/**
+ * `credda discover`: read a checkout and write the bug reports nobody filed.
+ *
+ * ## What it is, and the sentence it must never be read as
+ *
+ * ADR 0024 decides that discovery produces a REPORT and the existing pipeline
+ * decides what it is worth. That is the whole design and this command is the
+ * only thing that makes it reachable: `discoverFromRepository()` in
+ * `@credda/repository` walks a tree, runs both rule sets -- the security
+ * classes and the locally decidable defect classes -- and returns candidates in
+ * the same `{title, body}` slot a forge issue and a rendered signal fill. Until
+ * this existed nothing read them.
+ *
+ * "Credda finds bugs and security vulnerabilities" is the sentence this command
+ * must never be read as, wherever it is written. It finds SHAPES and writes
+ * reports about them, and measured against 160 real cases from 50 real
+ * repositories it confirmed none of them: 103 candidates, none of which fell
+ * silent at the maintainer's fix, and on no case did a finder name the defect
+ * the case pins (ADR 0024, amendment). A candidate is a report,
+ * not a finding and not a vulnerability disclosure, and every one of them is
+ * still owed a reproduction before it is anything at all -- which is why the
+ * output leads with the observation that would refute each one, and why it
+ * states no severity. Severity is a judgement about exposure and a single-file
+ * rule knows nothing about what a repository is exposed to.
+ *
+ * ## Why it does not start runs
+ *
+ * Discovery finding something is not consent to spend a model budget on it.
+ * This command writes reports and stops; the operator decides which of them is
+ * worth a sandbox, and starts it with `credda investigate` like any other
+ * report. That is the same discipline as `start: true` defaulting to false on
+ * the API's create route, and it is the reason this command may be run on
+ * anything without asking what it will cost.
+ *
+ * ## What it may never come to do
+ *
+ * It reads. It executes nothing -- not the repository's code and not the
+ * programs it emits, whose entire defect in the ReDoS case is that running them
+ * hangs a CPU (ADR 0005). The day this command runs one, it is an unsandboxed
+ * execution path opened by a scanner, and the name is a promise again.
+ */
+const DISCOVER: CommandSpec = {
+  name: 'discover',
+  summary: 'Read a checkout and write the bug reports nobody filed. Starts nothing',
+  args: '<repo-path> [--out <dir>] [--max-files <n>] [--json]',
+  flags: {
+    out: {
+      kind: 'string',
+      valueName: '<dir>',
+      description:
+        'Write each candidate report to a file in <dir>, and print the exact\n' +
+        '                      investigate command for it. Without this, the candidates are\n' +
+        '                      listed and nothing is written',
+    },
+    'max-files': {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'How many source files to read',
+      defaultNote: '400',
+    },
+  },
+  details: [
+    'What a run does, and what it costs:',
+    '  it walks the checkout, reads its JavaScript and TypeScript source, runs',
+    '  both rule sets over it -- the security classes and the locally decidable',
+    '  defect classes -- and writes an ordinary bug report about each shape it',
+    '  saw. The listing counts the classes off those lists rather than naming a',
+    '  number here, which is a number that rots. No sandbox, no container, no',
+    '  install, no network, no model call and no API key. Nothing in the',
+    '  repository is executed and nothing in it is written to.',
+    '',
+    'What a candidate is:',
+    '  a REPORT Credda wrote instead of waiting for somebody to write one. It is',
+    '  not a finding, it is not a vulnerability disclosure, and it states no',
+    '  severity -- severity is a judgement about exposure, and a rule reading one',
+    '  file knows nothing about what this repository is exposed to. Each report',
+    '  carries a program that decides the question by running, and that program',
+    '  is written so it can come back saying no. Most of them do.',
+    '',
+    'Nothing is started:',
+    '  discovery finding something is not consent to spend a model budget on it.',
+    '  This command creates no investigation. You choose which candidate is worth',
+    '  one, and start it yourself:',
+    '',
+    '    credda discover ./my-app --out ./candidates',
+    '    credda investigate ./my-app @./candidates/01-redos-src-parse-ts-84.md \\',
+    '      --ref discovery:REDOS:src/parse.ts:84',
+    '',
+    '  The --ref is printed for you beside each candidate. It is what records',
+    '  that Credda wrote the report, so the run reads as its own claim rather',
+    '  than as somebody else\'s. Nothing downstream branches on it: a discovered',
+    '  report is put through the identical pipeline, with the identical stages',
+    '  and the identical refusals, and a candidate that cannot be reproduced',
+    '  produces nothing. That is the correct outcome, and the common one.',
+    '',
+    'No candidates is not a clean bill of health. Two rule sets are looked for --',
+    'the security shapes and the locally decidable defect shapes -- and the',
+    'listing names which one spoke for each candidate. The output says how many',
+    'files were read and whether the walk stopped short, because "we did not',
+    'see it" and "it cannot happen" are different claims.',
+    '',
+    'What this has been measured to do, so a candidate is read for what it is:',
+    '  against 160 cases from 50 real repositories -- each at a commit where a',
+    '  defect is present and again at the maintainer\'s fix -- the rules emitted',
+    '  103 candidates, none of them fell silent at the fix, and on no case did a',
+    '  rule name the defect the case pins. Read a candidate as a report worth a',
+    '  reproduction, never as a defect this found.',
+    '',
+    'Exit code is 0 whether or not anything was found. A list of reports is not',
+    'a failed check.',
+  ],
+};
+
 export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   investigate: INVESTIGATE,
 
   triage: TRIAGE,
+
+  discover: DISCOVER,
 
   doctor: {
     name: 'doctor',
@@ -376,9 +882,12 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
       },
     },
     details: [
-      'Reports pass / warn / fail for the Node version, git, the active model',
-      'provider, the selected sandbox, and CREDDA_HOME. Exits non-zero only when',
-      'something is genuinely broken; warnings alone exit 0.',
+      'Reports pass / warn / fail for eight checks that always run: the Node',
+      'version, git, configuration, the active model provider, the selected',
+      'sandbox, the container plane, CREDDA_HOME and the database. The sandbox',
+      'image is a ninth, reported only when docker is the selected plane or',
+      '--deep was given. Exits non-zero only when something is genuinely broken;',
+      'warnings alone exit 0.',
       '',
       'With a <repo-path>, it also reports whether that repository could be',
       'prepared at all: the package manager and the exact install command a run',
@@ -438,16 +947,94 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
     },
   },
 
+  cancel: CANCEL,
+
+  /*
+   * The filters are the ones `apps/api/src/routes/investigations.ts` accepts,
+   * under the same names and the same vocabularies, for the reason
+   * {@link VALIDATIONS} gives: a filter that means something different on two
+   * surfaces is worse than a missing one.
+   *
+   * This command had only `--limit` while its younger sibling `validations`
+   * shipped with the full set, so the two questions most often asked of a queue
+   * -- whose repository, and how did it end -- could be asked of a validation
+   * from a terminal and not of an investigation. Every one of these is a filter
+   * the local store has always supported; nothing new is read.
+   *
+   * `--signal` and `--hasSignal` are the API filters deliberately absent. A
+   * signal is a row this CLI never writes: a run started from a terminal is
+   * started by the person at it, so `signalId` is null on every investigation
+   * in a local store, and `--signal` could only ever return nothing while
+   * `--hasSignal false` could only ever return everything.
+   *
+   * `--ref` is the opposite case and is here for it. Provenance is a column
+   * this CLI DOES write -- `credda investigate --ref` records it, and `credda
+   * discover` prints a ref for every candidate it writes precisely so the run
+   * started from one says Credda wrote the report -- so until this flag the
+   * terminal wrote a fact it could not then ask a question about.
+   */
   status: {
     name: 'status',
     summary: 'List recent investigations',
-    args: '[--limit <n>] [--json]',
+    args:
+      '[--repository <path-or-id>] [--state <state>] [--outcome <outcome>] ' +
+      '[--ref <ref>] [--limit <n>] [--offset <n>] [--json]',
     flags: {
+      repository: {
+        kind: 'string',
+        valueName: '<path-or-id>',
+        description:
+          'Only investigations of one repository. A path to a checkout or the\n' +
+          '                      repository id; an unknown one is refused rather than answered\n' +
+          '                      with an empty list',
+      },
+      state: {
+        kind: 'string',
+        choices: INVESTIGATION_STATE_CHOICES,
+        valueName: '<state>',
+        description: 'Only investigations in this state',
+      },
+      outcome: {
+        kind: 'string',
+        choices: OUTCOME_CHOICES,
+        valueName: '<outcome>',
+        description: 'Only investigations that concluded this',
+      },
+      ref: {
+        kind: 'string',
+        valueName: '<ref>',
+        description:
+          'Only investigations recorded as coming from this ref, matched whole.\n' +
+          '                      The value `credda investigate --ref` stored, and the one\n' +
+          '                      `credda discover` prints beside a candidate',
+      },
       limit: { kind: 'number', valueName: '<n>', description: 'How many to list', defaultNote: '20' },
+      offset: { kind: 'number', valueName: '<n>', description: 'Skip this many first', defaultNote: '0' },
     },
+    details: [
+      'STATE is where the run got to, including the terminal it stopped on.',
+      'OUTCOME is what it concluded, and a run still in flight has none -- so it',
+      'matches no --outcome value, and --state is the way to ask for it.',
+      '',
+      'Abstaining is a conclusion, not a gap: NO_CHANGE_REQUIRED means the',
+      'reported thing did not happen, and INCONCLUSIVE means the run would not',
+      'claim what it had not established. Both are successes and both exit 0.',
+      '',
+      '--ref asks where a run came from. It matches the whole string, which is',
+      'the form both writers of it produce: an issue reference or URL you passed',
+      'to `credda investigate --ref`, or the `discovery:<CLASS>:<file>:<line>`',
+      'ref `credda discover` prints beside a candidate. A run started with no ref',
+      'matches no value here.',
+      '',
+      '  credda validations    lists validation runs instead',
+    ],
   },
 
   report: REPORT,
+
+  validations: VALIDATIONS,
+
+  validation: VALIDATION,
 
   inspect: {
     name: 'inspect',
@@ -460,6 +1047,13 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
       'This is the run: the reproduction, every hypothesis including the refuted',
       'ones, and the evidence records. For what the run established and what it',
       'did not, use: credda report <id>',
+      '',
+      'What it spent is printed from the run\'s own cost record, and under --json',
+      'as `cost`, beside the ceiling that bounded it as `effectiveBudget`. Both',
+      'are absent rather than zero when nothing recorded them: a run still going,',
+      'and one that died before it could record, did not measure zero. A run',
+      'started from this terminal is bounded by the flags in its own banner, and',
+      'nothing writes that ceiling down, so `effectiveBudget` is null for it.',
     ],
   },
 
@@ -557,8 +1151,11 @@ const ENVIRONMENT: readonly (readonly [string, string])[] = [
       '                      is refused them and must use docker. Credda never falls back\n' +
       '                      silently in either direction.',
   ],
+  ['CREDDA_SANDBOX_IMAGE', 'Overrides the image the docker plane builds or pulls'],
   ['CREDDA_LOG_LEVEL', 'debug | info | warn | error (default warn)'],
   ['NO_COLOR', 'Set to any value to disable ANSI colour'],
+  ['CREDDA_ASCII', 'Set to any value to draw with ASCII instead of box characters'],
+  ['TERM', "'dumb' is treated the same as NO_COLOR"],
 ];
 
 export function rootUsage(): string {
@@ -568,8 +1165,8 @@ export function rootUsage(): string {
     'Usage: credda <command> [options]',
     '',
     'Workflow: signal -> investigate -> reproduce -> diagnose -> report.',
-    'Credda reports what it found and stops there. It does not edit your code,',
-    'it does not open a change proposal, and it needs no write access to do this.',
+    'Credda reports what it found and stops there. It changes nothing in your',
+    'working tree: any fix it attempts is made in a disposable copy.',
     '',
     'Commands:',
   ];

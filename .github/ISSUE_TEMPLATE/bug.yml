@@ -1,0 +1,61 @@
+name: A command behaves other than documented
+description: The command surface this repository mirrors does not do what it says.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Two things this tracker gets a lot of, neither of which is a bug.**
+
+        `npm i -g credda` returns a 404. The package is not published yet, on
+        purpose. **This package installs no command at all** — `@credda/cli`
+        declares no `bin`, because `0.1.6` gave that executable name up.
+
+        A `0.x` command that no longer exists — anything about a 0–100
+        reliability score, share tokens, credentials or disputes — is gone from
+        `1.0.0` deliberately. [CHANGELOG.md](../../CHANGELOG.md) is the answer.
+  - type: checkboxes
+    id: not-the-pivot
+    attributes:
+      label: Before filing
+      options:
+        - label: This is not the unpublished-package 404, and not a `0.x` command removed on purpose.
+          required: true
+  - type: input
+    id: command
+    attributes:
+      label: The command you ran
+      description: The whole invocation, flags included, exactly as typed.
+      placeholder: credda investigate --issue 41 --repo ./checkout
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: What it printed, and what you expected it to print
+      description: >
+        **The literal output, then the literal expectation, as two separate
+        things.** Paste what came out rather than describing it; a paraphrase of
+        an error message is not the error message, and the exact string is
+        usually the whole diagnosis. If it is long, the first and last twenty
+        lines beat a summary of all of it. Redact tokens and repository
+        contents; nothing here needs them.
+      render: text
+      placeholder: |
+        $ credda investigate --issue 41
+        error: unknown option '--issue'
+
+        expected: the investigation to start, or an error naming the right flag
+    validations:
+      required: true
+  - type: input
+    id: exit
+    attributes:
+      label: Exit code
+  - type: input
+    id: versions
+    attributes:
+      label: Version of the command, and Node version
+      description: '`credda --version` and `node --version`. The command needs Node 24 or newer.'
+    validations:
+      required: true

@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+### The command surface gained `credda cancel`, and a seventh exit code
+
+Mirrored from the engine on 2026-08-29. `credda cancel <id>` stops a run started
+in another terminal on the same machine, and it reports what stopping actually
+achieved rather than reporting success either way.
+
+The two answers are kept apart in the exit code because they are two different
+claims about the reader's own machine and their own bill:
+
+| Code | Claim |
+| --- | --- |
+| `0` | Nothing is running. The run had not started, its process is gone, or it was already cancelled. |
+| `7` | `CANCELLATION_REQUESTED`. A process is **still inside the run**, holding a sandbox and possibly a model call. It was signalled and it stops at its next checkpoint, writing its own terminal state. |
+| `2` | It already finished, or it is executing somewhere unreachable — in which case nothing was written to it. |
+
+`7` is new and is not a renumbering: `0` through `6` mean exactly what they meant
+in 1.0.0. It is separate from `4`, which is `credda investigate` reporting that a
+run it was executing ended; `7` is a different process reporting that it asked
+one to, without knowing whether it did.
+
+The statuses are the ones `POST /api/investigations/:id/cancel` returns, spelled
+identically.
+
+Also mirrored: `credda validations` and `credda validation <id>`, which were
+copied into `src/commands.ts` before this changelog recorded them, and are now
+listed in the README's command table.
+
 ## 1.0.0 — BREAKING: this package no longer installs a `credda` command
 
 **If you installed `@credda/cli` at 0.1.6 or earlier, upgrading removes a binary

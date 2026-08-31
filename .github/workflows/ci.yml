@@ -23,6 +23,15 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      # The README's example, RUN rather than shown. It imports from `dist/`,
+      # so it also proves the build produced a package whose documented exports
+      # are importable -- and it asserts with `node:assert/strict`, so a moved
+      # export or a changed exit code exits non-zero here instead of being
+      # discovered by a reader. An example that prints and exits 0 regardless
+      # is worse than no example, which is why this step follows the build
+      # rather than replacing a test.
+      - run: npm run example
+
   surface-parity:
     # src/args.ts and src/commands.ts are COPIES of the engine CLI's own files.
     # This job proves they are still byte-identical to their originals, which is
