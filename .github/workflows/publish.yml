@@ -44,7 +44,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: npm install
+      - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -64,7 +64,7 @@ jobs:
           node-version: 22
           registry-url: https://npm.pkg.github.com
           scope: '@credda-io'
-      - run: npm install
+      - run: npm ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
