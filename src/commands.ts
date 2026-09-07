@@ -25,8 +25,7 @@
  * reserved rather than reused (see {@link RESERVED_EXIT_CODES}).
  */
 
-import { own } from './own.js';
-import { GLOBAL_FLAGS, type CommandSpec, type FlagSpec } from './args.js';
+import { GLOBAL_FLAGS, own, type CommandSpec, type FlagSpec } from './args.js';
 
 /**
  * Exit codes. Documented here, in `--help`, and in docs/cli.md.
