@@ -1,3 +1,4 @@
+import { own } from './own.js';
 /**
  * A small argument parser for the `credda` command surface.
  *
@@ -161,7 +162,7 @@ export function parseArgs(
     }
 
     if (command === null && positionals.length === 0) {
-      const found = commands[token];
+      const found = own(commands, token);
       if (found !== undefined) {
         command = token;
         spec = found;
@@ -209,10 +210,10 @@ function splitFlag(token: string): { name: string; inlineValue: string | null } 
 function resolveFlag(name: string, spec: CommandSpec | null, command: string | null): ResolvedFlag {
   const commandFlags = spec?.flags ?? {};
 
-  const direct = commandFlags[name];
+  const direct = own(commandFlags, name);
   if (direct !== undefined) return { name, kind: direct.kind, spec: direct, global: false };
 
-  const globalSpec = GLOBAL_FLAGS[name];
+  const globalSpec = own(GLOBAL_FLAGS, name);
   if (globalSpec !== undefined) return { name, kind: globalSpec.kind, spec: globalSpec, global: true };
 
   for (const [key, candidate] of Object.entries(commandFlags)) {
