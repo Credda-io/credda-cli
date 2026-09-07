@@ -220,3 +220,46 @@ describe('rendered help', () => {
     expect(commandUsage('fix')).toContain('What it does: reproduce a reported failure');
   });
 });
+
+/**
+ * An argv token that names an Object.prototype member is not a flag or command.
+ *
+ * `COMMANDS`, `GLOBAL_FLAGS` and each command's `flags` are plain object
+ * literals, so `table[name]` walked the prototype chain and accepted every
+ * member of `Object.prototype`. Against the shipped build:
+ *
+ *     credda investigate --constructor ./repo
+ *
+ * was accepted, and the flag SWALLOWED `./repo` as its value — so the repository
+ * path silently disappeared and the run began without it. The same argv with
+ * `--nope` correctly threw "Unknown flag". `credda toString` resolved as a
+ * command instead of "Unknown command", and `commandUsage('toString')` then
+ * threw a TypeError rather than printing usage.
+ *
+ * A CLI's whole contract is that it refuses what it does not understand. This
+ * one refused the typo and accepted the inherited name.
+ */
+describe('argv tokens that name Object.prototype members', () => {
+  const INHERITED = ['constructor', 'toString', 'hasOwnProperty', 'valueOf'];
+
+  for (const name of INHERITED) {
+    it(`refuses --${name} rather than swallowing the next token`, () => {
+      expect(() => parse(['investigate', `--${name}`, './repo'])).toThrow(UsageError);
+    });
+
+    it(`refuses '${name}' as a command`, () => {
+      expect(() => parse([name])).toThrow(UsageError);
+    });
+
+    it(`prints root usage for '${name}' rather than throwing a TypeError`, () => {
+      expect(() => commandUsage(name)).not.toThrow();
+    });
+  }
+
+  it('still accepts the commands and positionals that are actually declared', () => {
+    // The control: a guard that refused everything would pass every case above.
+    const parsed = parse(['investigate', './repo']);
+    expect(parsed.command).toBe('investigate');
+    expect(parsed.positionals).toContain('./repo');
+  });
+});

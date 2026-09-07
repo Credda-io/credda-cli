@@ -25,6 +25,7 @@
  * reserved rather than reused (see {@link RESERVED_EXIT_CODES}).
  */
 
+import { own } from './own.js';
 import { GLOBAL_FLAGS, type CommandSpec, type FlagSpec } from './args.js';
 
 /**
@@ -1108,7 +1109,7 @@ export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
  * the caller's own "unknown command" path still owns that message.
  */
 export function canonicalCommand(name: string): string {
-  return COMMANDS[name]?.aliasOf ?? name;
+  return own(COMMANDS, name)?.aliasOf ?? name;
 }
 
 /** Alias name to the command it stands for, for the root usage. */
@@ -1201,7 +1202,7 @@ export function rootUsage(): string {
 }
 
 export function commandUsage(name: string): string {
-  const spec = COMMANDS[name];
+  const spec = own(COMMANDS, name);
   if (spec === undefined) return rootUsage();
 
   const lines: string[] = [
@@ -1220,7 +1221,7 @@ export function commandUsage(name: string): string {
      * The canonical summary is restated here so the answer is on the screen
      * rather than one command away.
      */
-    const target = COMMANDS[spec.aliasOf];
+    const target = own(COMMANDS, spec.aliasOf);
     if (target !== undefined) lines.push('', `What it does: ${target.summary.toLowerCase()}.`);
     lines.push(
       '',
