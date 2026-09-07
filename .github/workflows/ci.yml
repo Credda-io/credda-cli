@@ -46,6 +46,27 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: mirror
+      # Say WHICH secret is missing, before `checkout` fails with a message that
+      # names neither it nor this job.
+      #
+      # Failing closed here is deliberate -- see the comment on the job. But the
+      # failure it produced was `##[error]Input required and not supplied: token`
+      # from inside `actions/checkout`, which mentions no secret, no repository
+      # and no remedy. This job then failed on EVERY run from 2026-08-31 to
+      # 2026-09-06, `main` included, and nobody diagnosed it: the surface it
+      # exists to guard drifted for a week with a red tick beside it that
+      # everyone had learned to read as noise.
+      #
+      # A gate that cannot run has to say so in the words of the thing that is
+      # missing. Still exit 1 -- this is a clearer failure, not a softer one.
+      - name: Check the engine checkout can authenticate
+        env:
+          MONOREPO_READ_TOKEN: ${{ secrets.MONOREPO_READ_TOKEN }}
+        run: |
+          if [ -z "${MONOREPO_READ_TOKEN}" ]; then
+            echo "::error title=MONOREPO_READ_TOKEN is not set::This job compares src/args.ts and src/commands.ts against Credda-io/core, which is private, so it needs a token with read access to it. Set the repository secret MONOREPO_READ_TOKEN (a fine-grained PAT or app token with Contents: read on Credda-io/core). Until then this gate cannot run, and it fails rather than skipping: a parity check that silently does not run is worse than none. Fork PRs cannot have the secret and are expected to fail here."
+            exit 1
+          fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # The engine repository. The org rename has landed: `core`'s own
