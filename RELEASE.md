@@ -1,5 +1,21 @@
 # Releasing `@credda/cli`
 
+## Status — checked 2026-09-20
+
+Steps 2 and 3 below have already happened; this file is kept for the reasoning
+and for the next release, not as a to-do list.
+
+- **1.0.0 is published.** `npm view @credda/cli dist-tags` prints
+  `latest: 1.0.0`, published 2026-09-08. It declares no `bin`, as intended.
+- **`credda` is published**, at 1.1.0 on 2026-09-07, from `Credda-io/core` at
+  `apps/cli`. It owns the executable name.
+- **0.x is deprecated, but not with the message below.** Every `0.1.x` carries
+  npm's generic `"Package no longer supported. Contact Support at
+  https://www.npmjs.com/support for more info."` — not the message this file
+  specifies, which is the one that tells a user the product is retired and which
+  version to pin. Re-running the `npm deprecate` command below would replace it.
+  **That is a registry write and a human decision; it has not been run here.**
+
 ## The deprecation of 0.x — run this, and know why
 
 ```bash

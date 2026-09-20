@@ -19,14 +19,22 @@ credda --help
 Node 24 or newer for `credda`. This mirror package needs Node 18 and is a
 library, not a tool.
 
-> **Not installable yet — re-checked 2026-08-30.** The `credda` package is not on
-> the public npm registry (`https://registry.npmjs.org/credda` returns 404), so
-> the command above fails today. The latest `@credda/cli` on npm is still
-> **0.1.6**, the retired 0.x described below; the `1.0.0` in this repository's
-> `package.json` is unpublished on purpose — see [RELEASE.md](RELEASE.md), which
-> holds publication until a human has agreed to redefine a live package name.
-> Treat this block as what the install *will* be, not as a command that works
-> now.
+> **That command works — verified 2026-09-20.** This block used to say the
+> opposite, and stayed there for three weeks after it stopped being true. Both
+> packages have since been published: `npm view credda version` prints
+> **1.1.0**, published 2026-09-07 from `Credda-io/core` at `apps/cli`, and
+> `https://registry.npmjs.org/credda` answers **200**, not the 404 this note
+> used to report. `npm view @credda/cli dist-tags` prints `latest: 1.0.0`,
+> published 2026-09-08 — so this mirror is on the registry at the version this
+> README documents, and it is **not** deprecated, while every `0.1.x` below it
+> is.
+>
+> Two things this does *not* change. `credda` is the only package that installs
+> the command: `npm view @credda/cli@1.0.0 bin` is empty, exactly as the
+> paragraph above promises. And the `0.1.x` deprecation notices on the registry
+> carry npm's generic boilerplate rather than the message
+> [RELEASE.md](RELEASE.md) specifies, so a user who installs one is told
+> "Package no longer supported" and nothing about which version to pin.
 
 > ### The 0.1.6 break
 >
@@ -38,8 +46,10 @@ library, not a tool.
 > 0.1.6 also installed a binary named `credda`. So does the `credda` package.
 > Two packages cannot own one executable name, so this one gives it up: 1.0.0
 > declares no `bin`. If you depend on the old behaviour, **pin
-> `@credda/cli@0.1.6`** — it is untouched and still on the registry, nothing has
-> been unpublished — and read [CHANGELOG.md](CHANGELOG.md) for the migration.
+> `@credda/cli@0.1.6`** — it is still on the registry and nothing has been
+> unpublished, so a pinned lockfile keeps resolving; it is npm-deprecated, so
+> that install now prints a warning — and read [CHANGELOG.md](CHANGELOG.md) for
+> the migration.
 
 ## What Credda is
 
