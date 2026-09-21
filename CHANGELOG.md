@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased — the mirror regains `sweep` and `docscan`
+
+**Not published.** `@credda/cli` on npm is still 1.0.0 and its `COMMANDS` table
+still has thirteen commands. Everything below is true of this repository and of
+the engine CLI; it becomes true of the installed package only when someone
+publishes. Read the npm version, not this heading, when you are asking what your
+`node_modules` contains.
+
+The mirrored `src/args.ts` and `src/commands.ts` had drifted from
+`apps/cli/src/` in the engine repository: two commands landed there
+(`sweep`, engine commit `5632a8e`; `docscan`, engine commit `ec595c5`) and the
+copies here predated both, so the surface-parity gate was red and the published
+table under-reported what `credda` accepts.
+
+### Added to the mirrored surface
+
+- **`sweep <repo-path>`** — discover, investigate each candidate up to
+  `--max-candidates`, and, only with `--open-pull-request`, open one pull
+  request per run that carries a verified change. Also `--cost-ceiling <usd>`,
+  `--max-files`, `--sandbox`, `--provider`, `--budget-minutes`, `--max-turns`.
+  It runs no reproduce, fix or verify logic of its own. Without the opt-in flag
+  it writes to nothing. Credda proposes and never merges.
+- **`docscan <repo-path>`** — execute a checkout's own documented examples and
+  list the ones whose output contradicts the documented value, CONFIRMED first.
+  `--confirmed-only`. Every finding is either a code bug or a stale doc and the
+  command never decides which. It opens no PR and changes no file. It executes
+  examples in `node -e` child processes on the host, which is process isolation
+  and **not** the engine sandbox.
+
+### Changed
+
+- `src/args.ts`'s header no longer claims "13 commands, 3 aliases and 27 flags".
+  The engine's copy now says fifteen commands, three aliases and dozens of
+  flags, and declines to give an exact flag count on purpose.
+- The README command table, flag list and `examples/surface.mjs` follow the
+  table rather than a snapshot of it.
+- `src/cli.test.ts`'s write-flag guard was an exact-name blocklist holding
+  `pull-request`, which `sweep --open-pull-request` walked straight past. It now
+  matches the shape of a write-flag name and carries the flags that legitimately
+  match as a written, reviewed exception list, so a future one arrives as a
+  failure to be read rather than a green tick.
+
 ## 1.0.0 — 2026-09-08 — BREAKING: this package no longer installs a `credda` command
 
 **If you installed `@credda/cli` at 0.1.6 or earlier, upgrading removes a binary

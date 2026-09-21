@@ -3,8 +3,11 @@
  *
  * Hand-rolled deliberately: a dependency here would be a supply-chain risk
  * taken on for string parsing. The surface has outgrown the "six commands and a
- * dozen flags" this line used to claim -- it is 13 commands, 3 aliases and 27
- * flags -- and the argument holds better at that size, not worse.
+ * dozen flags" this line used to claim -- it is now fifteen commands, three
+ * aliases and dozens of flags -- and the argument holds better at that size, not
+ * worse. (The flag total is left approximate on purpose: an exact count typed in
+ * prose is the "number that rots" `credda discover` warns about, and this line
+ * had already drifted once.)
  * The parser is spec-driven so `--help` is generated from the same data the
  * parser validates against and cannot drift from it.
  */

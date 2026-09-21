@@ -21,6 +21,7 @@ describe('the mirrored command table', () => {
       [
         'cancel',
         'discover',
+        'docscan',
         'doctor',
         'events',
         'fix',
@@ -32,6 +33,7 @@ describe('the mirrored command table', () => {
         'resolution',
         'resolve',
         'status',
+        'sweep',
         'triage',
         'validation',
         'validations',
@@ -62,7 +64,55 @@ describe('the mirrored command table', () => {
    * that: `report` only reads a finished run, and the flag selects which
    * recorded artefact is printed on stdout.
    */
-  it('offers no flag that applies, delivers or merges a change', () => {
+  /*
+   * This was an exact-name blocklist (`fix`, `apply`, `merge`, `pr`,
+   * `pull-request`, `push`, `commit`, ...). It passed on 2026-09-21 against a
+   * table that had just gained `sweep --open-pull-request` -- because the
+   * engine spells it `open-pull-request` and the list held `pull-request`. A
+   * guard that a one-word prefix walks past is not a guard; it is a green tick.
+   *
+   * What replaces it matches the SHAPE of a write-flag name rather than an
+   * enumeration of spellings, and carries the flags that legitimately match as
+   * a written, reviewed exception list. That is strictly harder to pass: a
+   * newly mirrored flag whose name suggests applying, delivering or merging a
+   * change lands here as a failure that a person has to read and accept,
+   * which is the whole point.
+   */
+  const WRITE_SHAPED = /apply|merge|push|commit|patch|pull-request/;
+
+  /*
+   * Each entry is a flag that matches the shape above and has been read.
+   *
+   *   report --patch          `report` only READS a finished run; the flag
+   *                           selects which recorded artefact is printed on
+   *                           stdout. It applies nothing. (`resolution` is a
+   *                           permanent alias for `report` and shares the spec
+   *                           object, so it matches under both names.)
+   *   sweep --open-pull-request
+   *                           OPENS a pull request for runs that already carry
+   *                           a verified change. That is proposing, which is
+   *                           what Credda does -- it is off by default, it
+   *                           never force-pushes, and Credda never merges.
+   *                           It is on this list because it genuinely writes to
+   *                           a repository and a reader must not discover that
+   *                           from a flag name alone.
+   */
+  const REVIEWED_WRITE_FLAGS = new Set([
+    'report --patch',
+    'resolution --patch',
+    'sweep --open-pull-request',
+  ]);
+
+  it('offers no unreviewed flag that applies, delivers or merges a change', () => {
+    const matching = Object.entries(COMMANDS)
+      .flatMap(([name, command]) => Object.keys(command.flags).map((flag) => `${name} --${flag}`))
+      .filter((entry) => WRITE_SHAPED.test(entry.slice(entry.indexOf('--'))));
+    expect(matching.filter((entry) => !REVIEWED_WRITE_FLAGS.has(entry))).toEqual([]);
+    // The control: the exception list must not outlive the flags it excuses.
+    for (const reviewed of REVIEWED_WRITE_FLAGS) expect(matching).toContain(reviewed);
+  });
+
+  it('still lets no flag be named outright for applying or merging', () => {
     const flags = Object.values(COMMANDS).flatMap((command) => Object.keys(command.flags));
     for (const forbidden of ['fix', 'apply', 'write', 'merge', 'pr', 'pull-request', 'push', 'commit']) {
       expect(flags).not.toContain(forbidden);

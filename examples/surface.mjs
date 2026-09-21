@@ -65,12 +65,31 @@ assert.equal(EXIT.COMMENT_READY, 6, 'triage speaks on 6 and is silent on 0, that
 assert.equal(EXIT.CANCELLATION_REQUESTED, 7, 'a run asked to stop has not stopped');
 console.log('exit codes: 0 success, 5 no runnable check, 6 triage comment, 7 cancellation requested');
 
-/* 6. Credda proposes and never merges, and no flag on this surface changes that. */
+/*
+ * 6. Credda proposes and never merges, and no flag on this surface changes that.
+ *
+ * Read this together with the one flag that DOES write to a repository:
+ * `sweep --open-pull-request` opens a pull request for runs that already carry
+ * a verified change. Proposing is what Credda does; it is off by default and it
+ * never merges. So the assertion below is about applying and merging, not about
+ * "this surface touches nothing" -- which since `sweep` landed would be false.
+ */
 const everyFlag = Object.values(COMMANDS).flatMap((command) => Object.keys(command.flags));
 for (const forbidden of ['merge', 'apply', 'push', 'commit']) {
   assert.ok(!everyFlag.includes(forbidden), `no command may carry --${forbidden}`);
 }
 console.log('no command carries --merge, --apply, --push or --commit');
+
+assert.ok(
+  Object.keys(COMMANDS.sweep.flags).includes('open-pull-request'),
+  'sweep opens a pull request only behind an opt-in flag',
+);
+assert.equal(COMMANDS.sweep.flags['open-pull-request'].kind, 'boolean');
+assert.ok(
+  COMMANDS.sweep.flags['open-pull-request'].description.includes('Off by default'),
+  'and the help has to say so',
+);
+console.log('sweep writes to a repository only with --open-pull-request, which is off by default');
 
 /* 7. The help text is generated from the same table, so it cannot drift from it. */
 assert.ok(rootUsage().includes('investigate'));

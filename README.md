@@ -114,6 +114,8 @@ credda investigate <repo-path> <description | @file | ->  [options]
 | `investigate` | Reproduce a reported failure, diagnose it, and fix it where the provider allows |
 | `triage` | Say what Credda could not use in a report, or say nothing |
 | `discover` | Read a checkout and write the bug reports nobody filed. Starts nothing |
+| `sweep` | Discover, investigate each candidate, and open a PR for verified fixes (opt-in) |
+| `docscan` | Check a checkout against its own documented examples. Opens nothing |
 | `doctor` | Check that this environment can reproduce a bug |
 | `reap` | Remove sandbox containers left behind by an interrupted run |
 | `init` | Write a `credda.config.json` with documented defaults |
@@ -144,7 +146,9 @@ actually produces, so an old name is never read as a promise about the output.
 | `--ref` | `<ref>` record where this report came from; stored on the run | — |
 
 Other commands: `triage --repo <path>`; `discover --out <dir>` and
-`--max-files <n>`; `report`/`resolution` `--markdown` and
+`--max-files <n>`; `sweep --max-candidates <n> --cost-ceiling <usd>
+--open-pull-request --max-files <n> --sandbox <s> --provider <p>
+--budget-minutes <n> --max-turns <n>`; `docscan --confirmed-only`; `report`/`resolution` `--markdown` and
 `--patch`; `doctor --deep`; `reap --dry-run --max-age-hours <n>`;
 `init --global --force`; `status --repository <path-or-id> --state <state>
 --outcome <outcome> --ref <ref> --limit <n> --offset <n>`; `events --since <n>` and
@@ -158,6 +162,25 @@ an empty document as an empty change. It only reads a finished run: it applies
 nothing, delivers nothing, and whether that diff may be proposed to anyone is a
 separate question answered by the delivery block that `credda investigate --out`
 writes.
+
+`sweep` is the only verb on this table that can write to your repository, and
+only when you ask it to. It is `discover`, then `investigate` on each candidate
+up to `--max-candidates`, then — **only** with `--open-pull-request` — one pull
+request per run that carries a verified change. Without that flag it reports
+what it would propose and pushes nothing. It runs no reproduce, fix or verify
+logic of its own, so it is not a second engine, and it inherits `discover`'s
+caveat below in full: a candidate is a report worth a reproduction, not a defect
+Credda found. Credda proposes and never merges; the branch is deterministic, an
+existing open pull request for a finding is reported rather than clobbered, and
+it never force-pushes.
+
+`docscan` executes the checkout's own documented examples — `node -e` child
+processes on **this host**, sharing its filesystem and network, which is process
+isolation and not the engine sandbox. That is safe for a checkout you trust and
+is not production-safe for one you do not. It lists findings for a person,
+CONFIRMED first; every finding is either a code bug or a stale doc and the
+command never decides which. It opens no PR, writes no comment, and changes no
+file.
 
 `discover` is the narrowest verb on this table and the one most likely to be
 read as more than it is. It walks a checkout an operator names, reads its

@@ -862,12 +862,214 @@ const DISCOVER: CommandSpec = {
   ],
 };
 
+/**
+ * `credda sweep`: the whole loop -- discover, investigate each candidate, and
+ * (only if asked) open a pull request for the ones that carry a verified change.
+ *
+ * ## What it is, and the two sentences it must never be read as
+ *
+ * It is `credda discover` followed by `credda investigate` on each candidate
+ * followed, opt-in, by the same pull request the fixer's delivery opens. It runs
+ * no reproduce, fix or verify logic of its own -- every stage is the one the
+ * benchmark measures, reached through the same pipeline `investigate` uses. So
+ * it is NOT a second engine, and "Credda finds and fixes bugs nobody reported"
+ * is the sentence it makes true only to the degree discovery surfaces real,
+ * reproducible defects -- which prior measurement found narrow (see
+ * docs/strategy/autonomous-qa-engineer-audit-2026-09-15.md, gap G2). A run that
+ * proves nothing proposes nothing, exactly as everywhere else.
+ *
+ * ## Why the pull request is off by default, and bounded when on
+ *
+ * The sweep is model-backed per candidate and, with `--open-pull-request`, it
+ * writes to a repository. Both are costs the operator must opt into: without the
+ * flag it does everything up to the PR and prints what it would propose, and
+ * `--max-candidates` bounds how many runs it will ever start. That is the same
+ * discipline `credda discover` states (finding something is not consent to spend
+ * on it) and the same gate the Action's `open-pull-request` input enforces.
+ */
+const SWEEP: CommandSpec = {
+  name: 'sweep',
+  summary: 'Discover, investigate each candidate, and open a PR for verified fixes (opt-in)',
+  args: '<repo-path> [--max-candidates <n>] [--cost-ceiling <usd>] [--open-pull-request] [options]',
+  flags: {
+    'max-candidates': {
+      kind: 'number',
+      valueName: '<n>',
+      description:
+        'Hard cap on candidates investigated. The sweep runs a model-backed\n' +
+        '                      investigation per candidate, so this is never unbounded',
+      defaultNote: '3',
+    },
+    'cost-ceiling': {
+      kind: 'number',
+      valueName: '<usd>',
+      description:
+        'Stop before starting a run once this much model spend has been\n' +
+        '                      recorded. Optional; without it only --max-candidates bounds the run',
+    },
+    'open-pull-request': {
+      kind: 'boolean',
+      description:
+        'Opt-in. Open a pull request for each run that carries a verified\n' +
+        '                      change. Off by default: without it the sweep reports what it\n' +
+        '                      would propose and pushes nothing. Credda never merges',
+    },
+    'max-files': {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'How many source files the discovery pass reads',
+      defaultNote: '400',
+    },
+    sandbox: {
+      kind: 'string',
+      choices: ['local', 'native', 'docker'],
+      valueName: '<local|native|docker>',
+      description:
+        'Execution plane for each investigation, as on credda investigate',
+      defaultNote: 'local',
+    },
+    provider: {
+      kind: 'string',
+      choices: ['auto', 'heuristic', 'openai-compatible'],
+      valueName: '<auto|heuristic|openai-compatible>',
+      description: 'Model provider for each investigation, as on credda investigate',
+      defaultNote: 'auto',
+    },
+    'budget-minutes': {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'Wall-clock budget for each investigation',
+      defaultNote: '20',
+    },
+    'max-turns': {
+      kind: 'number',
+      valueName: '<n>',
+      description: 'Maximum model calls per investigation',
+      defaultNote: '120',
+    },
+  },
+  details: [
+    'The loop, in order:',
+    '  1. discover: read the checkout and write the candidate reports nobody filed',
+    '     (the same pass credda discover runs; nothing is executed).',
+    '  2. investigate: run the existing pipeline on each candidate up to the cap,',
+    '     with the candidate report as the bug description and its discovery ref as',
+    '     provenance, so the run reads as Credda\'s own claim.',
+    '  3. propose: for each run that carries a VERIFIED change -- the engine\'s own',
+    '     carriesVerifiedChange over the executed record -- open one pull request.',
+    '     Off unless --open-pull-request is passed.',
+    '',
+    'What bounds it, and what it will not do:',
+    '  --max-candidates caps how many runs start; the sweep never fans out over an',
+    '  unbounded list. --cost-ceiling stops it cleanly once model spend reaches the',
+    '  amount, mid-list. A candidate that does not reproduce produces nothing, which',
+    '  is the correct and common outcome.',
+    '',
+    'One pull request per finding, and never a clobber:',
+    '  the branch is deterministic, so a re-run of the same finding meets its own',
+    '  branch. An existing open pull request for it means the proposal already',
+    '  exists and the sweep says so and pushes nothing; it never force-pushes.',
+    '',
+    'Opening a pull request writes to your repository and needs a forge token and',
+    'a remote. Without --open-pull-request none of that is touched.',
+    '',
+    'Exit code is 0 whatever it found: a sweep is a list of what it did, not a',
+    'check on the repository.',
+  ],
+};
+
+/**
+ * `credda docscan`: check a checkout against the examples it documents about
+ * itself, and print a human-review findings queue.
+ *
+ * ## What it is, and the sentence it must never be read as
+ *
+ * A package's own documentation states `expression -> value` pairs. This runs
+ * the doc-example finder (`@credda/repository`), which executes each admissible
+ * example against the shipped code and reports the ones whose output
+ * contradicts the documented value. The finder was precision-hardened to ~66%
+ * CONFIRMED and the verdict was explicit: GO as a human-triage queue, NO-GO for
+ * blanket auto-PR. This command is that queue and nothing more.
+ *
+ * "Credda opens PRs to fix your docs" is the sentence it must never be read as.
+ * It lists findings for a person, CONFIRMED first, and opens no PR, writes no
+ * comment, and changes nothing. Every finding is EITHER a code bug OR a stale
+ * doc (`CODE_OR_DOC`), and the command never asserts which.
+ *
+ * ## Why it is a verb of its own, beside `discover`
+ *
+ * `discover` reads source statically and executes NOTHING. This EXECUTES the
+ * repository's documented examples, so the two cannot share a verb: a reader of
+ * `discover`'s guarantee ("nothing in the repository is executed") must keep it.
+ * docscan states its own, narrower guarantee -- examples run in `node -e` child
+ * processes on this host, which is safe for a checkout you trust and NOT for an
+ * untrusted one, for which the engine sandbox is required first.
+ */
+const DOCSCAN: CommandSpec = {
+  name: 'docscan',
+  summary: 'Check a checkout against its own documented examples. Opens nothing',
+  args: '<repo-path> [--confirmed-only] [--json]',
+  flags: {
+    'confirmed-only': {
+      kind: 'boolean',
+      description:
+        'List only CONFIRMED findings -- the set no rendering or quoting\n' +
+        '                      explains, closest to the PR bar. SUSPECTED findings are\n' +
+        '                      counted but not listed',
+    },
+  },
+  details: [
+    'What a run does, and what it costs:',
+    '  it reads the checkout\'s README fenced blocks and JSDoc @example blocks,',
+    '  admits the examples that are a self-contained call of the documented',
+    '  package with a literal expected value, executes each against the shipped',
+    '  code, and lists the ones whose output contradicts the documented value.',
+    '  No model call, no API key, no install, and no network.',
+    '',
+    'What it EXECUTES, and where -- read this before an untrusted repository:',
+    '  it runs each documented example in a short-lived `node -e` child process',
+    '  whose working directory is the checkout, bounded by a wall-clock timeout.',
+    '  That is process-level isolation, NOT the engine sandbox: the child shares',
+    '  this host\'s filesystem and network. It is safe for a checkout you trust',
+    '  -- your own code, a dependency you installed and read -- and it is NOT',
+    '  production-safe for an untrusted repository. Routing execution through the',
+    '  engine sandbox is required before that.',
+    '',
+    'What a finding is:',
+    '  a documented example whose executed output differs from the value the',
+    '  documentation states. It is EITHER a code bug OR a stale documentation',
+    '  example, and this command never decides which -- you do.',
+    '    CONFIRMED  a value difference no rendering, quoting or wrapper explains',
+    '               (NaN where a number is documented, a wrong number). This is',
+    '               the set closest to the PR bar; it is listed first.',
+    '    SUSPECTED  a difference the documentation\'s own ambiguity or a rendering',
+    '               choice accounts for (`\'true\'` vs `true`, a class wrapper vs',
+    '               its contents). Kept for you, never asserted as a code bug.',
+    '',
+    'This is a human-review queue, not an auto-fix feed. The finder was measured',
+    'at about two in three CONFIRMED findings being real, which is a queue worth',
+    'a person\'s time and not a bar worth opening a pull request against',
+    'unattended. Nothing here opens a PR, writes a comment, or changes a file.',
+    '',
+    'An empty queue is not a clean bill of health. A repository with no runnable',
+    'documented examples yields nothing, and a documented example that conforms',
+    'proves only that one example, not the code around it.',
+    '',
+    'Exit code is 0 whether or not anything was found. A list of findings is not',
+    'a failed check.',
+  ],
+};
+
 export const COMMANDS: Readonly<Record<string, CommandSpec>> = {
   investigate: INVESTIGATE,
 
   triage: TRIAGE,
 
   discover: DISCOVER,
+
+  sweep: SWEEP,
+
+  docscan: DOCSCAN,
 
   doctor: {
     name: 'doctor',
