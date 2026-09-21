@@ -76,6 +76,30 @@ jobs:
           repository: Credda-io/core
           token: ${{ secrets.MONOREPO_READ_TOKEN }}
           path: engine
+      # SAY WHICH REF THE MIRROR WAS COMPARED AGAINST.
+      #
+      # The checkout above names no `ref:`, so it takes whatever the DEFAULT
+      # BRANCH of Credda-io/core is on the day the run happens. Today that is
+      # `credda` -- checked 2026-09-21 -- which is the branch the engine is
+      # actually developed on, so this gate is comparing against the right
+      # thing. But that is true by coincidence of a repository setting, not by
+      # anything written down here, and the run log named no ref at all: a
+      # default branch pointed back at an abandoned `main` would turn this into
+      # a parity check against dead code, reported in exactly the same words.
+      #
+      # It is recorded rather than pinned on purpose. Pinning `ref: credda`
+      # would be a policy decision about which branch the published CLI mirrors,
+      # and that is the maintainer's call, not this file's. Naming the ref in
+      # the log costs nothing and makes the question answerable from a run.
+      - name: Name the engine ref this comparison used
+        run: |
+          set -euo pipefail
+          ref=$(git -C engine rev-parse --abbrev-ref HEAD 2>/dev/null || echo '(detached)')
+          if [ "$ref" = HEAD ]; then ref='(detached)'; fi
+          sha=$(git -C engine rev-parse HEAD)
+          echo "::notice title=Engine ref::Credda-io/core default branch resolved to '$ref' ($sha)"
+          echo "Comparing mirror/src against Credda-io/core@$ref ($sha)"
+
       - name: Compare each mirrored file to its original, byte for byte
         run: |
           set -euo pipefail
@@ -114,7 +138,17 @@ jobs:
       # GitHub's own secret scanning and push protection are not enabled on this
       # repo, so the scan runs here instead. The gitleaks container is used
       # directly rather than gitleaks-action, which needs an org licence key.
+      # PINNED BY DIGEST, and `:latest` is why.
+      #
+      # This step used to pull `zricethezav/gitleaks:latest`, so the ruleset
+      # this gate enforces changed whenever upstream published, with no commit
+      # in this repository and nothing to bisect. That is the same class as an
+      # unpinned action: the check does not mean the same thing on two runs of
+      # the same tree. The digest below is the multi-arch index for v8.30.1,
+      # resolved 2026-09-21; `detect --source` is still the supported spelling
+      # at that version (verified by running it). Bump it deliberately.
       - name: Scan the full history for committed secrets
         run: |
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+          docker run --rm -v "$PWD:/repo" \
+            zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
             detect --source=/repo --redact --no-banner --verbose
